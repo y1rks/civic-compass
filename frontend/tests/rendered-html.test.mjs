@@ -32,11 +32,11 @@ test("トップページがHTMLとして描画される", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 });
 
-test("メタデータにPoliScopeの情報が含まれる", async () => {
+test("メタデータにcivic-compassの情報が含まれる", async () => {
   const html = await (await render("/")).text();
 
   assert.match(html, /<html lang="ja"/);
-  assert.match(html, /<title>PoliScope[^<]*<\/title>/);
+  assert.match(html, /<title>civic-compass[^<]*<\/title>/);
   assert.match(html, /name="description"[^>]*content="[^"]*政治家[^"]*"/);
 });
 
@@ -44,7 +44,7 @@ test("ニュース一覧の主要な要素が描画される", async () => {
   const html = await (await render("/")).text();
 
   // ブランド表示とヘッダーのコピー
-  assert.match(html, /PoliScope/);
+  assert.match(html, /civic-compass/);
   assert.match(html, /今日の論点を/);
 
   // 一覧のコンテナとボトムナビゲーション
