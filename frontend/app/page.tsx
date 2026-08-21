@@ -25,7 +25,7 @@ export default function HomePage() {
 
   useEffect(() => {
     getArticles().then(setArticles);
-    const stored = window.localStorage.getItem("poliscope-interests");
+    const stored = window.localStorage.getItem("civic-compass-interests");
     if (stored) setSaved(JSON.parse(stored));
   }, []);
 
@@ -56,7 +56,7 @@ export default function HomePage() {
     const interest = await saveInterest(selected.id, comment.trim());
     const next = { ...saved, [selected.id]: interest };
     setSaved(next);
-    window.localStorage.setItem("poliscope-interests", JSON.stringify(next));
+    window.localStorage.setItem("civic-compass-interests", JSON.stringify(next));
     setMatches(await getMatches(selected.id));
     setSaving(false);
     setModalOpen(true);
@@ -84,7 +84,7 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
       <header className="feed-header">
         <div className="brand-row">
           <div className="brand-mark"><Compass size={19} strokeWidth={2.4} /></div>
-          <span className="brand-name">PoliScope</span>
+          <span className="brand-name">civic-compass</span>
           <button className="icon-button" aria-label="保存した記事"><Bookmark size={21} /></button>
         </div>
         <p className="eyebrow">TODAY&apos;S ISSUES</p>

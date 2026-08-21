@@ -1,4 +1,4 @@
-# PoliScope (civic-compass)
+# civic-compass
 
 日々の政治ニュースへの関心を記録し、自分と考えが近い政治家を見つけるためのスマートフォン向けWebアプリです。
 

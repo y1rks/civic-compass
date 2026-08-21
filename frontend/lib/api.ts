@@ -5,7 +5,7 @@ const delay = (ms = 180) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const articles: Article[] = [
   {
-    id: "energy-2035", category: "環境・エネルギー", readTime: "4分で読める", source: "POLISCOPE NEWS", publishedAt: "2時間前",
+    id: "energy-2035", category: "環境・エネルギー", readTime: "4分で読める", source: "civic-compass NEWS", publishedAt: "2時間前",
     title: "再生可能エネルギー、2035年までに電源構成の50%へ——新目標案を発表",
     summary: "政府の有識者会議は、再生可能エネルギーの比率を大幅に引き上げる新たな目標案を公表しました。地域との合意形成や送電網整備が焦点です。",
     image: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1200&q=85",
