@@ -1,0 +1,46 @@
+# npm workspaces 構成のため、無視するファイルはこのファイルにまとめています。
+# パターンの先頭にスラッシュを付けていないものは、すべての階層に適用されます。
+
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# build output
+.next/
+.vinext/
+out/
+dist/
+/frontend/outputs/
+/frontend/work/
+
+# cloudflare / wrangler
+.wrangler/
+
+# testing
+coverage/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+.dev.vars*
+
+# vercel
+.vercel
+
+# typescript
+next-env.d.ts

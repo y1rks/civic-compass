@@ -44,9 +44,20 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      // `/api/*` は api ワークスペースの Worker (wrangler dev) へ転送します。
+      // 同一オリジン扱いになるため、フロント側で CORS を意識する必要がありません。
+      // ポートは api/wrangler.jsonc の dev.port と揃えます。
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+        },
+      },
+      ...(isCodexSeatbeltSandbox
+        ? { watch: { useFsEvents: false, usePolling: true } }
+        : {}),
+    },
     plugins: [
       vinext(),
       sites(),
