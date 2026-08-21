@@ -101,15 +101,50 @@ export const SEGMENT_SCHEMA = {
   required: ["segments"],
 };
 
-let cachedToken = null;
+// wrangler の OAuth トークンには有効期限がある（実測1時間程度）。
+// 長時間バッチではトークンが切れて Authentication error が出続けるので、
+// 期限を見て先回りで、失効していたら wrangler にリフレッシュさせて読み直す。
+const WRANGLER_CONFIG = path.join(os.homedir(), "Library/Preferences/.wrangler/config/default.toml");
+const EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 期限の5分前には更新する
 
-export async function getToken() {
-  if (cachedToken) return cachedToken;
-  const p = path.join(os.homedir(), "Library/Preferences/.wrangler/config/default.toml");
-  const toml = await readFile(p, "utf8");
-  const m = /oauth_token\s*=\s*"([^"]+)"/.exec(toml);
-  if (!m) throw new Error("wrangler の OAuth トークンが見つかりません。`npx wrangler login` を実行してください");
-  cachedToken = m[1];
+let cachedToken = null;
+let cachedExpiry = 0;
+
+async function readTokenFromConfig() {
+  const toml = await readFile(WRANGLER_CONFIG, "utf8");
+  const token = /oauth_token\s*=\s*"([^"]+)"/.exec(toml)?.[1];
+  if (!token) {
+    throw new Error("wrangler の OAuth トークンが見つかりません。`npx wrangler login` を実行してください");
+  }
+  const exp = /expiration_time\s*=\s*"([^"]+)"/.exec(toml)?.[1];
+  return { token, expiry: exp ? Date.parse(exp) : 0 };
+}
+
+/**
+ * wrangler にトークンを更新させる。
+ * wrangler は API を叩くときに期限を見て refresh_token で更新し、設定ファイルに書き戻す。
+ * こちらから更新用のエンドポイントを叩くより、wrangler に任せるほうが確実。
+ */
+async function refreshViaWrangler() {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  await promisify(execFile)("npx", ["wrangler", "whoami"], { maxBuffer: 4 * 1024 * 1024 });
+}
+
+export async function getToken({ force = false } = {}) {
+  const stillValid = cachedToken && Date.now() < cachedExpiry - EXPIRY_MARGIN_MS;
+  if (stillValid && !force) return cachedToken;
+
+  let { token, expiry } = await readTokenFromConfig();
+
+  // 設定ファイル側も切れていれば wrangler に更新させる
+  if (force || (expiry && Date.now() >= expiry - EXPIRY_MARGIN_MS)) {
+    await refreshViaWrangler();
+    ({ token, expiry } = await readTokenFromConfig());
+  }
+
+  cachedToken = token;
+  cachedExpiry = expiry || Date.now() + 30 * 60 * 1000;
   return cachedToken;
 }
 
@@ -135,19 +170,20 @@ function stripFence(text) {
 }
 
 const isRateLimit = (msg) => /rate limit|too many requests|429|capacity/i.test(msg);
+const isAuthError = (msg) => /authentication|unauthor|invalid token|10000/i.test(msg);
 
 /**
  * Workers AI を呼び、JSON スキーマに沿った結果を返す。
  * レート制限は待って再試行する（本番は17時間走るので、ここで諦めない）。
  */
 export async function runStructured({ model = DEFAULT_MODEL, system, user, schema, maxTokens = 8000 }) {
-  const token = await getToken();
   const accountId = await getAccountId();
   let tokens = maxTokens;
 
   for (let attempt = 1; ; attempt++) {
     let json;
     try {
+      const token = await getToken();
       await throttle();
       const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`, {
         method: "POST",
@@ -170,6 +206,11 @@ export async function runStructured({ model = DEFAULT_MODEL, system, user, schem
 
     if (!json.success) {
       const msg = json.errors?.map((e) => e.message).join(" / ") ?? "unknown error";
+      // トークンの失効。取り直せば回復するので、リトライ回数を消費させない
+      if (isAuthError(msg) && attempt < MAX_RETRY) {
+        await getToken({ force: true });
+        continue;
+      }
       // レート制限は時間で回復するので、他のエラーより長めに待つ
       if (isRateLimit(msg) && attempt < MAX_RETRY) {
         await sleep(Math.min(20_000 * attempt, 60_000));
