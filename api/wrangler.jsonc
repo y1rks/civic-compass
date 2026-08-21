@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "civic-compass-api",
+  "main": "src/index.ts",
+  // wrangler 4.92.0 に同梱の workerd が対応する最新日付。
+  // wrangler を上げたらこの日付も進められます。
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  // フロントエンド (vinext dev) は 3000 番を使うため、API は 8000 番で固定します。
+  // frontend/vite.config.ts の server.proxy がこのポートへ転送します。
+  "dev": {
+    "port": 8000
+  },
+  // D1 データベース。frontend/vite.config.ts の d1_databases と
+  // binding 名・database_name を揃えることで、同じDBを共有します。
+  // database_id は Cloudflare 上に作成するまでのプレースホルダーです
+  // (ローカル開発では使われません)。作成手順は README を参照してください。
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "civic-compass-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../db/migrations"
+    }
+  ]
+}
