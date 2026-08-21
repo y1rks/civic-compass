@@ -39,7 +39,11 @@ civic-compass/
 │   ├── vite.config.ts     # Vite 設定（APIへの proxy もここ）
 │   └── package.json
 └── api/                   # API
-    ├── src/index.ts       # Hono のルーティング
+    ├── src/
+    │   ├── index.ts       # ルーターの登録
+    │   ├── bindings.ts    # D1 などバインディングの型
+    │   └── routes/        # エンドポイント（ファイル名 = URL）
+    │       └── example.ts # -> /api/example（雛形）
     ├── wrangler.jsonc     # Cloudflare Workers の設定
     └── package.json
 ```
@@ -93,7 +97,7 @@ npm run dev
 
 ブラウザで http://localhost:3000 を開いてください。ログは `[frontend]` `[api]` の接頭辞で色分けして表示されます。
 
-APIが起動しているかを確かめるには http://localhost:8000/api/health を開きます。`{"status":"ok"}` が返れば正常です。なお実際のエンドポイントはすべて `/api` 以下にあるため、http://localhost:8000/ は動作確認用の案内を返すだけです。
+APIが起動しているかを確かめるには http://localhost:8000/ を開きます。公開中のエンドポイント一覧が返れば正常です。個別のエンドポイントは `/api` 以下にあり、初期状態では雛形の http://localhost:8000/api/example だけが登録されています。
 
 ポート3000が使用中の場合は、3001など別のポートで起動します。実際にターミナルへ表示されたURLを使用してください。
 
@@ -139,7 +143,7 @@ Lint の設定はリポジトリ直下の [`eslint.config.mjs`](./eslint.config.
 フロントエンドから `/api/...` を呼ぶと、Vite の proxy が自動的に API (8000番) へ転送します。同一オリジン扱いになるため、CORS の設定は不要です。
 
 ```ts
-const res = await fetch("/api/health");
+const res = await fetch("/api/example");
 const data = await res.json();
 ```
 
@@ -147,15 +151,51 @@ const data = await res.json();
 
 ### APIを実装する
 
-API は Cloudflare Workers 上で動く [Hono](https://hono.dev/) で実装します。エントリポイントは [`api/src/index.ts`](./api/src/index.ts) です。ルートは `api` に追加します。
+API は Cloudflare Workers 上で動く [Hono](https://hono.dev/) で実装します。**エンドポイントごとに `src/routes/` へファイルを作り、ファイル名とURLを1対1で対応させます。**
 
-```ts
-api.get("/articles", (c) => c.json({ articles: [] }));
+```text
+api/src/
+├── index.ts               # ルーターの登録
+├── bindings.ts            # D1 などバインディングの型
+└── routes/
+    ├── example.ts         ->  /api/example（雛形）
+    ├── articles.ts        ->  /api/articles
+    └── interests.ts       ->  /api/interests
 ```
 
-`app.route("/api", api)` でマウントしているため、上の例は `/api/articles` として公開されます。
+#### 新しいエンドポイントを追加する手順
 
-D1 などのバインディングを追加する場合は [`api/wrangler.jsonc`](./api/wrangler.jsonc) に設定を書き、`api/src/index.ts` の `Bindings` 型に追記すると `c.env.DB` として型付きで参照できます。
+[`api/src/routes/example.ts`](./api/src/routes/example.ts) が雛形です。コピーして次の2手順で追加できます。
+
+**1.** `src/routes/articles.ts` を作る（ファイル名がURLになります）
+
+```ts
+import { Hono } from "hono";
+import type { AppEnv } from "../bindings";
+
+const articles = new Hono<AppEnv>();
+
+articles.get("/", (c) => c.json({ articles: [] }));               // GET /api/articles
+articles.get("/:id", (c) => c.json({ id: c.req.param("id") }));   // GET /api/articles/:id
+
+export default articles;
+```
+
+**2.** [`api/src/index.ts`](./api/src/index.ts) で登録する
+
+```ts
+import articles from "./routes/articles";
+
+app.route("/api/articles", articles);
+```
+
+以上です。`/` が返すエンドポイント一覧は Hono の登録済みルートから自動生成しているので、手で追記する必要はありません。
+
+ルーター内のパスはマウント先からの相対です。`app.route("/api/articles", articles)` の下で `articles.get("/")` と書くと `/api/articles` になります。
+
+#### バインディングを追加する
+
+[`api/wrangler.jsonc`](./api/wrangler.jsonc) に設定を書き、[`api/src/bindings.ts`](./api/src/bindings.ts) の `Bindings` 型に1行足すと、全ルーターで `c.env.DB` のように型付きで参照できます。
 
 ### 現在のAPIスタブ
 
@@ -210,15 +250,22 @@ npm exec -w api -- wrangler d1 execute DB --local --persist-to ../.wrangler/stat
 
 ### api から使う
 
-テーブルを定義したあと、`c.env.DB` を `createDb()` に渡します。
+テーブルを定義したあと、ルーターの中で `c.env.DB` を `createDb()` に渡します。
 
 ```ts
-import { articles, createDb } from "@civic-compass/db";
+// api/src/routes/articles.ts
+import { Hono } from "hono";
+import { articles as articlesTable, createDb } from "@civic-compass/db";
+import type { AppEnv } from "../bindings";
 
-api.get("/articles", async (c) => {
+const articles = new Hono<AppEnv>();
+
+articles.get("/", async (c) => {
   const db = createDb(c.env.DB);
-  return c.json({ articles: await db.select().from(articles).limit(20) });
+  return c.json({ articles: await db.select().from(articlesTable).limit(20) });
 });
+
+export default articles;
 ```
 
 ### frontend から使う

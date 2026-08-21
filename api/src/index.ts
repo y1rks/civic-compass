@@ -1,34 +1,32 @@
 /** Cloudflare Worker entry point for the civic-compass API. */
 import { Hono } from "hono";
+import type { AppEnv } from "./bindings";
+import example from "./routes/example";
 
-/** wrangler.jsonc で設定したバインディング。 */
-export type Bindings = {
-  /** Cloudflare D1。frontend ワークスペースと同じデータベースを参照します。 */
-  DB: D1Database;
-};
-
-/**
- * API 本体。ここに追加したルートは `/api/...` で公開されます。
- * 例: `api.get("/articles", ...)` -> `/api/articles`
- *
- * D1 を使うときは、db/src/schema.ts にテーブルを定義したうえで次のように書きます。
- */
-const api = new Hono<{ Bindings: Bindings }>();
-
-api.get("/health", (c) => c.json({ status: "ok", service: "civic-compass-api" }));
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<AppEnv>();
 
 // ブラウザで http://localhost:8000/ を直接開いたときの動作確認用。
-// 実際のエンドポイントはすべて `/api` 以下にあります。
+// 一覧は登録済みルートから自動生成するため、APIを追加してもこの関数は変更不要です。
 app.get("/", (c) =>
   c.json({
     service: "civic-compass-api",
     hint: "エンドポイントは /api 以下にあります。",
-    endpoints: ["/api/health"],
+    endpoints: [
+      ...new Set(
+        app.routes
+          .filter((route) => route.path.startsWith("/api"))
+          .map((route) => `${route.method} ${route.path}`),
+      ),
+    ].sort(),
   }),
 );
 
-app.route("/api", api);
+// ★ ルーターの登録。ファイルのパスとURLが1対1で対応します。
+//    新しいAPIを追加するときは、ここに1行足すだけです。
+//
+//    src/routes/example.ts    ->  /api/example
+//    src/routes/articles.ts   ->  /api/articles
+//    src/routes/interests.ts  ->  /api/interests
+app.route("/api/example", example);
 
 export default app;
