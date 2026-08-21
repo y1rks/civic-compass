@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the civic-compass API. */
 import { Hono } from "hono";
 import type { AppEnv } from "./bindings";
+import articles from "./routes/articles";
 import example from "./routes/example";
 import health from "./routes/health";
 
@@ -28,6 +29,7 @@ app.get("/", (c) =>
 //    src/routes/example.ts    ->  /api/example
 //    src/routes/articles.ts   ->  /api/articles
 //    src/routes/interests.ts  ->  /api/interests
+app.route("/api/articles", articles);
 app.route("/api/example", example);
 app.route("/api/health", health);
 
