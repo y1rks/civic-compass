@@ -2,7 +2,7 @@
 
 日々の政治ニュースへの関心を記録し、自分と考えが近い政治家を見つけるためのスマートフォン向けWebアプリです。
 
-現在は画面のプロトタイプ段階です。ニュース、関心情報の保存、政治家のマッチングは、すべてフロントエンド内のスタブで動いています。
+現在は画面のプロトタイプ段階です。ニュースはAPIが返すスタブ、関心情報の保存と政治家のマッチングはフロントエンド内のスタブで動いています。
 
 保存した関心情報とコメントはブラウザの `localStorage` に保存され、外部には公開されません。
 
@@ -30,7 +30,7 @@ civic-compass/
 │   │   ├── globals.css    # スマートフォン向けスタイル
 │   │   └── layout.tsx     # メタデータと共通レイアウト
 │   ├── lib/
-│   │   ├── api.ts         # APIスタブとサンプルデータ
+│   │   ├── api.ts         # APIクライアントと未接続機能のスタブ
 │   │   └── types.ts       # 画面が使うデータ型
 │   ├── tests/             # SSR結果のテスト
 │   ├── worker/index.ts    # Cloudflare Worker のエントリポイント
@@ -41,7 +41,9 @@ civic-compass/
     ├── src/
     │   ├── index.ts       # ルーターの登録
     │   ├── bindings.ts    # D1 などバインディングの型
+    │   ├── data/          # APIが返すデモ用データ
     │   └── routes/        # エンドポイント（ファイル名 = URL）
+    │       ├── articles.ts # -> /api/articles（記事一覧スタブ）
     │       ├── example.ts # -> /api/example（雛形）
     │       └── health.ts  # -> /api/health（D1疎通確認）
     ├── wrangler.jsonc     # Cloudflare Workers の設定
@@ -197,13 +199,13 @@ app.route("/api/articles", articles);
 
 [`api/wrangler.jsonc`](./api/wrangler.jsonc) に設定を書き、[`api/src/bindings.ts`](./api/src/bindings.ts) の `Bindings` 型に1行足すと、全ルーターで `c.env.DB` のように型付きで参照できます。
 
-### 現在のAPIスタブ
+### 現在のAPI連携
 
-画面が使うデータは、まだ [`frontend/lib/api.ts`](./frontend/lib/api.ts) 内のサンプルデータで動いています。
+記事一覧は [`api/src/data/articles.ts`](./api/src/data/articles.ts) のスタブを `GET /api/articles` で返し、[`frontend/lib/api.ts`](./frontend/lib/api.ts) の `getArticles()` が取得します。ほかの機能は、まだフロントエンド内のスタブで動いています。
 
 | 関数 | 用途 |
 | --- | --- |
-| `getArticles()` | ニュース一覧の取得 |
+| `getArticles()` | `GET /api/articles` からニュース一覧を取得 |
 | `saveInterest()` | 関心情報とコメントの保存 |
 | `getMatches()` | 記事単位の政治家マッチ取得 |
 | `getProfileMatches()` | マイページの総合マッチ取得 |
@@ -358,12 +360,11 @@ API のポートは wrangler のデフォルト (8787) ではなく **8000** を
 
 ## 今後のAPI連携時に必要な対応
 
-1. ニュース一覧APIを `api/` に実装し、`getArticles()` から呼ぶ
-2. 関心情報保存APIを `api/` に実装し、`saveInterest()` から呼ぶ
-3. LLMを利用する政治家マッチAPIを `api/` に実装し、`getMatches()` から呼ぶ
-4. ユーザー単位の総合マッチAPIを `api/` に実装し、`getProfileMatches()` から呼ぶ
-5. 認証を導入し、`localStorage` の関心情報を D1 へ移す
-6. 実在する政治家情報と公式WebサイトURLをAPIから取得する
+1. 関心情報保存APIを `api/` に実装し、`saveInterest()` から呼ぶ
+2. LLMを利用する政治家マッチAPIを `api/` に実装し、`getMatches()` から呼ぶ
+3. ユーザー単位の総合マッチAPIを `api/` に実装し、`getProfileMatches()` から呼ぶ
+4. 認証を導入し、`localStorage` の関心情報を D1 へ移す
+5. 実在する政治家情報と公式WebサイトURLをAPIから取得する
 
 DBを使う段階になったら、まず[`db/src/schema.ts`](./db/src/schema.ts)にテーブルを定義し、APIから参照してください。
 

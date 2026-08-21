@@ -23,7 +23,7 @@
     "start:api": "npm run start -w api",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "npm run test -w frontend",
+    "test": "npm run test -w api && npm run test -w frontend",
     "typecheck": "npm run typecheck -w @civic-compass/db && npm run typecheck -w api && npm run typecheck -w frontend",
     "cf:typegen": "npm run cf:typegen -w api && npm run cf:typegen -w frontend",
     "db:generate": "npm run generate -w @civic-compass/db",
