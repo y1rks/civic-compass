@@ -42,6 +42,22 @@ export async function getAccountId() {
 }
 
 const MAX_RETRY = 5;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Workers AI は「1分あたりの推論リクエスト数」で制限される（実測 約26件/分）。
+// 並列度で調整しようとすると必ず超過するので、**全リクエストを1本の間隔制御に通す**。
+// 並列8でも12でも、ここを通る限り毎分の上限を超えない。
+const MIN_INTERVAL_MS = 2500; // 24 req/分。上限26に対して少し余裕を持たせる
+let nextSlot = 0;
+
+async function throttle() {
+  const now = Date.now();
+  // 予約制にすることで、複数の呼び出しが同時に来ても間隔が詰まらない
+  const slot = Math.max(now, nextSlot);
+  nextSlot = slot + MIN_INTERVAL_MS;
+  const wait = slot - now;
+  if (wait > 0) await sleep(wait);
+}
 
 export const EXTRACT_SCHEMA = {
   type: "object",
@@ -119,19 +135,20 @@ function stripFence(text) {
 }
 
 const isRateLimit = (msg) => /rate limit|too many requests|429|capacity/i.test(msg);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Workers AI を呼び、JSON スキーマに沿った結果を返す。
  * レート制限は待って再試行する（本番は17時間走るので、ここで諦めない）。
  */
-export async function runStructured({ model = DEFAULT_MODEL, system, user, schema, maxTokens = 4000 }) {
+export async function runStructured({ model = DEFAULT_MODEL, system, user, schema, maxTokens = 8000 }) {
   const token = await getToken();
   const accountId = await getAccountId();
+  let tokens = maxTokens;
 
   for (let attempt = 1; ; attempt++) {
     let json;
     try {
+      await throttle();
       const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -141,7 +158,7 @@ export async function runStructured({ model = DEFAULT_MODEL, system, user, schem
             { role: "user", content: user },
           ],
           response_format: { type: "json_schema", json_schema: schema },
-          max_tokens: maxTokens,
+          max_tokens: tokens,
         }),
       });
       json = await res.json();
@@ -165,17 +182,20 @@ export async function runStructured({ model = DEFAULT_MODEL, system, user, schem
 
     const { text, finish } = extractText(json.result);
     if (text === null) {
+      // finish=length は出力枠の不足。同じ条件で再試行しても無駄なので枠を広げる
+      if (finish === "length") tokens = Math.min(tokens * 2, 32_000);
       if (attempt >= MAX_RETRY) throw new Error(`応答テキストを取り出せません (finish=${finish})`);
-      await sleep(2000);
+      await sleep(1000);
       continue;
     }
 
     try {
       return JSON.parse(stripFence(text));
     } catch (e) {
-      // JSON が壊れているのはモデル側の揺れなので、そのまま再試行する
+      // 出力が途中で切れていることがあるので、枠を広げて再試行する
+      if (/Unterminated|Unexpected end/.test(e.message)) tokens = Math.min(tokens * 2, 32_000);
       if (attempt >= MAX_RETRY) throw new Error(`JSON をパースできません: ${e.message}`);
-      await sleep(2000);
+      await sleep(1000);
     }
   }
 }
