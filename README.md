@@ -15,6 +15,13 @@ civic-compass/
 ├── package.json           # ワークスペース定義と、まとめて起動するコマンド
 ├── package-lock.json      # 依存関係のロック（リポジトリ全体で1つ）
 ├── .gitignore             # 無視設定（リポジトリ全体で1つ）
+├── db/                    # DBスキーマ（frontend と api の共通ワークスペース）
+│   ├── src/
+│   │   ├── schema.ts      # テーブル定義
+│   │   └── client.ts      # D1 から drizzle クライアントを作る
+│   ├── migrations/        # 生成されたマイグレーションSQL
+│   ├── drizzle.config.ts
+│   └── package.json
 ├── frontend/              # 画面
 │   ├── app/
 │   │   ├── page.tsx       # 各画面と画面遷移
@@ -22,7 +29,9 @@ civic-compass/
 │   │   └── layout.tsx     # メタデータと共通レイアウト
 │   ├── lib/
 │   │   ├── api.ts         # APIスタブとサンプルデータ
-│   │   └── types.ts       # データ型
+│   │   ├── db.ts          # Server Component から D1 を使う入口
+│   │   └── types.ts       # 画面が使うデータ型
+│   ├── tests/             # SSR結果のテスト
 │   ├── worker/index.ts    # Cloudflare Worker のエントリポイント
 │   ├── public/            # 静的ファイル
 │   ├── vite.config.ts     # Vite 設定（APIへの proxy もここ）
@@ -32,6 +41,8 @@ civic-compass/
     ├── wrangler.jsonc     # Cloudflare Workers の設定
     └── package.json
 ```
+
+DBスキーマを `db/` に切り出しているのは、frontend と api の両方が同じテーブル定義と型を参照するためです。
 
 ## 主な機能
 
@@ -149,6 +160,91 @@ D1 などのバインディングを追加する場合は [`api/wrangler.jsonc`]
 
 `api/` 側の実装が進んだら、画面側の呼び出し方を変えずに、これらの関数の中身を `fetch("/api/...")` へ差し替える想定です。データ型は [`frontend/lib/types.ts`](./frontend/lib/types.ts) に定義しています。
 
+## データベース (Cloudflare D1)
+
+D1 は Workers から SQL で操作する SQLite ベースのデータベースです。テーブル定義は [`db/src/schema.ts`](./db/src/schema.ts) の1か所にまとめ、frontend と api の両方が同じ定義を参照します。ORM には Drizzle を使います。
+
+### マイグレーション手順
+
+スキーマを変更したら、**SQLの生成**と**DBへの適用**の2段階で反映します。どちらもリポジトリ直下で実行します。
+
+```bash
+# 1. db/src/schema.ts を編集する
+
+# 2. 変更内容からマイグレーションSQLを生成する
+npm run db:generate
+
+# 3. ローカルのD1へ適用する
+npm run db:migrate
+```
+
+`npm run db:generate` は [`db/migrations/`](./db/migrations/) に `0001_xxx.sql` のような連番のSQLを生成します。**生成されたSQLはコミットしてください。** チームの他のメンバーは `npm run db:migrate` を実行するだけで同じ状態になります。
+
+本番（Cloudflare 上のD1）へ適用する場合は次を実行します。
+
+```bash
+npm run db:migrate:remote
+```
+
+### ローカルDBの中身を見る
+
+```bash
+npm exec -w api -- wrangler d1 execute DB --local --persist-to ../.wrangler/state \
+  --command "SELECT * FROM articles LIMIT 10;"
+```
+
+### api から使う
+
+`c.env.DB` を `createDb()` に渡します。
+
+```ts
+import { articles, createDb } from "@civic-compass/db";
+
+api.get("/articles", async (c) => {
+  const db = createDb(c.env.DB);
+  return c.json({ articles: await db.select().from(articles).limit(20) });
+});
+```
+
+### frontend から使う
+
+Server Component / Server Action から [`frontend/lib/db.ts`](./frontend/lib/db.ts) の `getDb()` を呼びます。
+
+```tsx
+import { articles, getDb } from "../lib/db";
+
+export default async function Page() {
+  const rows = await getDb().select().from(articles).limit(5);
+  return <ArticleList articles={rows} />;
+}
+```
+
+クライアントコンポーネント（`"use client"`）からは呼べません。ブラウザ側で必要なデータは、api 経由（`fetch("/api/...")`）で取得するか、Server Component で取得して props で渡してください。
+
+### ローカルDBの共有について
+
+frontend と api は別プロセスで起動しますが、次の設定で**同じローカルD1**を読み書きします。
+
+| ワークスペース | 設定箇所 | 内容 |
+| --- | --- | --- |
+| frontend | [`vite.config.ts`](./frontend/vite.config.ts) | `persistState: { path: "../.wrangler/state" }` |
+| api | [`package.json`](./api/package.json) | `wrangler dev --persist-to ../.wrangler/state` |
+
+実体はリポジトリ直下の `.wrangler/state/v3/d1/` に作られます（gitignore 済み）。バインディング名 `DB` と `database_name` も両者で揃えてあります。片方だけ変更すると別々のDBを見てしまうので注意してください。
+
+### Cloudflare 上にD1を作る
+
+現在 `database_id` はプレースホルダーです。実際にCloudflareへデプロイする際は、次の手順で作成してIDを設定してください。
+
+```bash
+npm exec -w api -- wrangler d1 create civic-compass-db
+```
+
+出力された `database_id` を2か所に反映します。
+
+1. [`api/wrangler.jsonc`](./api/wrangler.jsonc) の `d1_databases[0].database_id`
+2. [`frontend/vite.config.ts`](./frontend/vite.config.ts) の `localBindingConfig.d1_databases[0].database_id`
+
 ## よく使うコマンド
 
 すべてリポジトリ直下で実行します。
@@ -158,7 +254,11 @@ D1 などのバインディングを追加する場合は [`api/wrangler.jsonc`]
 | `npm run dev` | フロントエンドとAPIを同時に起動 |
 | `npm run build` | 両方の本番ビルドを確認 |
 | `npm run lint` | フロントエンドの ESLint |
-| `npm run typecheck` | APIの型チェック |
+| `npm run test` | フロントエンドのSSR結果のテスト |
+| `npm run typecheck` | db と api の型チェック |
+| `npm run db:generate` | スキーマ変更からマイグレーションSQLを生成 |
+| `npm run db:migrate` | ローカルD1へマイグレーションを適用 |
+| `npm run db:migrate:remote` | Cloudflare上のD1へマイグレーションを適用 |
 
 特定のワークスペースでコマンドを実行したい場合は `-w` を使います。
 
@@ -174,6 +274,7 @@ npm install <package> -w api    # api にだけ依存を追加する
 | --- | --- |
 | 画面 | React 19 / vinext (Next.js互換) / TypeScript / Tailwind CSS / Lucide React |
 | API | Cloudflare Workers / Hono / TypeScript |
+| DB | Cloudflare D1 (SQLite) / Drizzle ORM / drizzle-kit |
 | ビルド・実行 | npm workspaces / Vite / wrangler |
 
 ## デプロイ
@@ -202,7 +303,9 @@ API のポートは wrangler のデフォルト (8787) ではなく **8000** を
 2. 関心情報保存APIを `api/` に実装し、`saveInterest()` から呼ぶ
 3. LLMを利用する政治家マッチAPIを `api/` に実装し、`getMatches()` から呼ぶ
 4. ユーザー単位の総合マッチAPIを `api/` に実装し、`getProfileMatches()` から呼ぶ
-5. 認証とDB保存（D1）を導入し、`localStorage` を置き換える
+5. 認証を導入し、`localStorage` の関心情報を D1 の `interests` テーブルへ移す
 6. 実在する政治家情報と公式WebサイトURLをAPIから取得する
+
+テーブル定義（`articles` / `politicians` / `interests` / `matches`）は [`db/src/schema.ts`](./db/src/schema.ts) に用意済みです。データ投入や参照の実装から進められます。
 
 政治的な判断に関わる情報を扱うため、本番運用時にはマッチングロジックの説明可能性、データの更新日、情報源、プライバシーポリシーも明示してください。

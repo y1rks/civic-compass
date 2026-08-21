@@ -13,9 +13,17 @@
   // frontend/vite.config.ts の server.proxy がこのポートへ転送します。
   "dev": {
     "port": 8000
-  }
-  // D1 を使うときはここでバインディングを追加します。
-  // "d1_databases": [
-  //   { "binding": "DB", "database_name": "civic-compass-d1", "database_id": "<id>" }
-  // ]
+  },
+  // D1 データベース。frontend/vite.config.ts の d1_databases と
+  // binding 名・database_name を揃えることで、同じDBを共有します。
+  // database_id は Cloudflare 上に作成するまでのプレースホルダーです
+  // (ローカル開発では使われません)。作成手順は README を参照してください。
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "civic-compass-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../db/migrations"
+    }
+  ]
 }

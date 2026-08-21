@@ -7,6 +7,7 @@
     "node": ">=22.13.0"
   },
   "workspaces": [
+    "db",
     "frontend",
     "api"
   ],
@@ -19,7 +20,11 @@
     "start:frontend": "npm run start -w frontend",
     "start:api": "npm run start -w api",
     "lint": "npm run lint -w frontend",
-    "typecheck": "npm run typecheck -w api"
+    "test": "npm run test -w frontend",
+    "typecheck": "npm run typecheck -w @civic-compass/db && npm run typecheck -w api",
+    "db:generate": "npm run generate -w @civic-compass/db",
+    "db:migrate": "npm run db:migrate -w api",
+    "db:migrate:remote": "npm run db:migrate:remote -w api"
   },
   "devDependencies": {
     "concurrently": "10.0.5"

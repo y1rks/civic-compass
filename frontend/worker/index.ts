@@ -4,6 +4,8 @@ import handler from "vinext/server/app-router-entry";
 
 interface Env {
   ASSETS: Fetcher;
+  /** Cloudflare D1。api ワークスペースと同じデータベースを参照します。 */
+  DB: D1Database;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
