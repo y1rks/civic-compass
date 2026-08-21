@@ -3,26 +3,9 @@ import type { Article, Match, SavedInterest } from "./types";
 // 未接続の関数を、画面上で非同期処理として扱うための遅延です。
 const delay = (ms = 180) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function isArticle(value: unknown): value is Article {
-  if (typeof value !== "object" || value === null) return false;
-
-  const article = value as Record<string, unknown>;
-  return typeof article.id === "string"
-    && typeof article.category === "string"
-    && typeof article.title === "string"
-    && typeof article.summary === "string"
-    && Array.isArray(article.body)
-    && article.body.every((paragraph) => typeof paragraph === "string")
-    && typeof article.image === "string"
-    && typeof article.source === "string"
-    && typeof article.publishedAt === "string"
-    && typeof article.readTime === "string";
-}
-
-function isArticlesResponse(value: unknown): value is { articles: Article[] } {
-  if (typeof value !== "object" || value === null || !("articles" in value)) return false;
-  return Array.isArray(value.articles) && value.articles.every(isArticle);
-}
+type ArticlesResponse = {
+  articles: Article[];
+};
 
 const politicians: Match[] = [
   { id: "a", name: "水野 あかり", initials: "MA", party: "みらい市民党", area: "神奈川3区", score: 92, reason: "再生可能エネルギーへの投資と、地域住民が参加する合意形成を重視する点が一致しています。", color: "#d57a4a", website: "https://example.com/politicians/mizuno" },
@@ -39,11 +22,7 @@ export async function getArticles(): Promise<Article[]> {
     throw new Error(`記事の取得に失敗しました (${response.status})`);
   }
 
-  const data: unknown = await response.json();
-  if (!isArticlesResponse(data)) {
-    throw new Error("記事 API のレスポンス形式が不正です");
-  }
-
+  const data = await response.json() as ArticlesResponse;
   return data.articles;
 }
 export async function saveInterest(articleId: string, comment: string): Promise<SavedInterest> {
