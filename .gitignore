@@ -25,6 +25,10 @@ dist/
 # testing
 coverage/
 
+# 国会会議録から収集した発言データ（数十MB規模）。共有は R2 経由を想定。
+# scripts/kokkai/*.mjs を実行すれば再生成できる。
+/data/
+
 # misc
 .DS_Store
 *.pem

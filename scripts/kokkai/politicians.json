@@ -1,0 +1,395 @@
+{
+  "_note": [
+    "対象議員マスタ。speaker_id は【1】utterances / 【2】profile のキーになるので採番後は変更しない。",
+    "collect_from は「生データを取る範囲」。抽出に使う範囲（extract_window）とは別で、広めに取る。",
+    "生データは資産なので捨てず、抽出対象は extract_window で絞る。",
+    "expected_groups は同姓同名の混入を検知するための想定会派。前方一致で照合する。"
+  ],
+  "until": "2026-08-22",
+  "default_collect_from": "2020-08-01",
+  "_extract_window_note": [
+    "LLM抽出にかける範囲。全議員で同一にすることで、データソースの期間差が思想の差として",
+    "現れるのを防ぐ。5年より前は「現在の立場と食い違う」リスクがあるため使わない。",
+    "議員ごとに from / to を上書きできる（新人議員などの特例用）。"
+  ],
+  "extract_window": {
+    "from": "2020-08-01",
+    "to": "2026-08-22"
+  },
+  "politicians": [
+    {
+      "speaker_id": "P00001",
+      "name": "高市早苗",
+      "party": "自由民主党",
+      "house": "衆議院",
+      "collect_from": "2017-08-01",
+      "expected_groups": [
+        "自由民主党"
+      ],
+      "note": "総務相・経済安保相・総理。自発的発言は36件だが党首討論44件・予算委答弁1176件が使える。",
+      "website": "https://www.sanae.gr.jp/",
+      "web_sources": [],
+      "web_note": "robots.txt がAIクローラーを拒否しているため自動取得しない。data/manual/P00001.md に手動投入済み。",
+      "active": true
+    },
+    {
+      "speaker_id": "P00002",
+      "name": "河野太郎",
+      "party": "自由民主党",
+      "house": "衆議院",
+      "collect_from": "2017-08-01",
+      "expected_groups": [
+        "自由民主党"
+      ],
+      "note": "外相・防衛相・デジタル相。自発的発言は8件のみ。各省委員会答弁の定型表現率が3.4%と低く本人の言葉に近い。",
+      "website": "https://www.taro.org/",
+      "web_sources": [
+        {
+          "url": "https://www.taro.org/category/policy",
+          "label": "主張・政策",
+          "follow": true
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00003",
+      "name": "小泉進次郎",
+      "party": "自由民主党",
+      "house": "衆議院",
+      "collect_from": "2017-08-01",
+      "expected_groups": [
+        "自由民主党"
+      ],
+      "note": "環境相・農水相・防衛相。自発的発言288件に加え予算委・各省委答弁が使える。",
+      "website": "https://www.shinjiro.info/",
+      "web_sources": [
+        {
+          "url": "https://www.shinjiro.info/policy_2026/",
+          "label": "主要政策",
+          "follow": false
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00004",
+      "name": "稲田朋美",
+      "party": "自由民主党",
+      "house": "衆議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "自由民主党"
+      ],
+      "note": "保守系だが選択的夫婦別姓に前向き。政策賛否と思想が一致しない実例として選定。",
+      "website": "https://www.inada-tomomi.com/",
+      "web_sources": [
+        {
+          "url": "https://www.inada-tomomi.com/policy/",
+          "label": "政治理念",
+          "follow": false
+        },
+        {
+          "url": "https://www.inada-tomomi.com/category/policy/",
+          "label": "政策",
+          "follow": true
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00005",
+      "name": "小川淳也",
+      "party": "中道改革連合",
+      "house": "衆議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "立憲民主党",
+        "中道改革連合"
+      ],
+      "note": "旧立憲系。発言時点の会派は立憲民主党のものが大半になる。",
+      "website": "https://www.junbo.org/",
+      "web_sources": [
+        {
+          "url": "https://www.junbo.org/",
+          "label": "代表就任にあたって（トップ）",
+          "follow": false
+        }
+      ],
+      "web_note": "サイトがSPAで下層ページの本文を取得できない。トップに理念文があるためそこを使う。",
+      "active": true
+    },
+    {
+      "speaker_id": "P00006",
+      "name": "階猛",
+      "party": "中道改革連合",
+      "house": "衆議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "立憲民主党",
+        "中道改革連合"
+      ],
+      "note": "旧立憲系。",
+      "website": "https://shina.jp/a/",
+      "web_sources": [
+        {
+          "url": "https://shina.jp/a/fukokukyoei/",
+          "label": "政策（富国共栄）",
+          "follow": false
+        },
+        {
+          "url": "https://shina.jp/a/?page_id=93",
+          "label": "政策",
+          "follow": false
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00007",
+      "name": "斉藤鉄夫",
+      "party": "中道改革連合",
+      "house": "衆議院",
+      "collect_from": "2017-08-01",
+      "expected_groups": [
+        "公明党",
+        "中道改革連合"
+      ],
+      "note": "旧公明系。2021-10〜2024-10 国交相。各省委員会答弁の定型表現率23.9%と高めなので重み0.3で扱う。",
+      "website": "https://www.saitotetsuo.com/",
+      "web_sources": [
+        {
+          "url": "https://www.saitotetsuo.com/policy/",
+          "label": "政策",
+          "follow": false
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00008",
+      "name": "藤田文武",
+      "party": "日本維新の会",
+      "house": "衆議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "日本維新の会"
+      ],
+      "note": null,
+      "website": "https://fumitakefujita.com/",
+      "web_sources": [
+        {
+          "url": "https://fumitakefujita.com/activities",
+          "label": "政策・活動一覧",
+          "follow": true
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00009",
+      "name": "音喜多駿",
+      "party": "日本維新の会",
+      "house": "参議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "日本維新の会"
+      ],
+      "note": "直近の発言が2024-06で止まっている。現職状況の確認が必要。",
+      "website": "https://otokitashun.com/",
+      "web_sources": [
+        {
+          "url": "https://otokitashun.com/policy2025",
+          "label": "政策",
+          "follow": false
+        }
+      ],
+      "active": false,
+      "inactive_reason": "2025-07-20 の参院選（東京選挙区）で落選。現職ではないため P00016 猪瀬直樹に差し替え。"
+    },
+    {
+      "speaker_id": "P00010",
+      "name": "玉木雄一郎",
+      "party": "国民民主党",
+      "house": "衆議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "国民民主党"
+      ],
+      "note": null,
+      "website": "https://tamakinet.jp/",
+      "web_sources": [
+        {
+          "url": "https://tamakinet.jp/policies/",
+          "label": "理念と政策",
+          "follow": false
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00011",
+      "name": "榛葉賀津也",
+      "party": "国民民主党",
+      "house": "参議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "国民民主党"
+      ],
+      "note": null,
+      "website": "https://k-shimba.com/",
+      "web_sources": [
+        {
+          "url": "https://k-shimba.com/philosophy",
+          "label": "理念と政策",
+          "follow": false
+        }
+      ],
+      "active": true
+    },
+    {
+      "speaker_id": "P00012",
+      "name": "田村智子",
+      "party": "日本共産党",
+      "house": "衆議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "日本共産党"
+      ],
+      "note": null,
+      "website": "https://www.tamura-jcp.info/",
+      "web_sources": [
+        {
+          "url": "https://www.tamura-jcp.info/archives/category/column",
+          "label": "ともここらむ（本人のコラム）",
+          "follow": true
+        }
+      ],
+      "active": true,
+      "web_note": "「政策・マニフェスト」カテゴリは赤旗記事と議事録の転載で、本人の文章ではなく他人の発言も混ざるため使わない。一人称で書かれたコラムに差し替えた。"
+    },
+    {
+      "speaker_id": "P00013",
+      "name": "山本太郎",
+      "party": "れいわ新選組",
+      "house": "参議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "れいわ新選組"
+      ],
+      "note": "直近の発言が2025-12で止まっている。現職状況の確認が必要。",
+      "website": "https://www.taro-yamamoto.jp/",
+      "web_sources": [
+        {
+          "url": "https://reiwa-shinsengumi.com/policy/",
+          "label": "基本政策（党サイト・本人が代表）",
+          "follow": false
+        }
+      ],
+      "web_note": "個人サイトの政策ページは見出しのみで本文がない。党代表なのでれいわ新選組の基本政策で代替。",
+      "active": false,
+      "inactive_reason": "2026-01 に健康上の理由で議員辞職、2026-07 に政界引退。P00017 天畠大輔に差し替え。"
+    },
+    {
+      "speaker_id": "P00014",
+      "name": "神谷宗幣",
+      "party": "参政党",
+      "house": "参議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "参政党"
+      ],
+      "note": null,
+      "website": "https://www.kamiyasohei.jp/",
+      "web_sources": [
+        {
+          "url": "https://www.kamiyasohei.jp/2026/01/01/10687/",
+          "label": "令和8年の初志",
+          "follow": false
+        },
+        {
+          "url": "https://www.kamiyasohei.jp/2025/01/01/10659/",
+          "label": "令和7年の初志",
+          "follow": false
+        },
+        {
+          "url": "https://www.kamiyasohei.jp/2024/01/01/10597/",
+          "label": "令和6年の初志",
+          "follow": false
+        }
+      ],
+      "web_note": "個人サイトに政策ページがなくブログ形式。思想を述べた年頭記事を指定している。",
+      "active": true
+    },
+    {
+      "speaker_id": "P00015",
+      "name": "安野貴博",
+      "party": "チームみらい",
+      "house": "衆議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "チームみらい"
+      ],
+      "note": "新人。発言量が少ないため n>=3 のセル除外ルールを緩めるか補助データが必要。",
+      "website": "https://team-mir.ai/",
+      "web_sources": [
+        {
+          "url": "https://team-mir.ai/election/sangiin-2025",
+          "label": "政策（党サイト・本人が代表）",
+          "follow": false
+        }
+      ],
+      "web_note": "個人サイト(takahiroanno.com)がSPAで本文を取得できない。党代表なのでチームみらいの政策ページで代替。",
+      "active": true
+    },
+    {
+      "speaker_id": "P00016",
+      "name": "猪瀬直樹",
+      "party": "日本維新の会",
+      "house": "参議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "日本維新の会"
+      ],
+      "note": "元東京都知事・作家。2025年以降363件と活発。音喜多駿の代替として首都圏・非大阪系の性格を引き継ぐ。",
+      "website": "https://inose.gr.jp/",
+      "web_sources": [],
+      "active": true,
+      "web_note": "公式サイトは著作紹介が中心で政策文書がない（政策ページ自体が存在しない）。国会発言870件で補う。入れる場合は data/manual/P00016.md へ。"
+    },
+    {
+      "speaker_id": "P00017",
+      "name": "天畠大輔",
+      "party": "いのちの党",
+      "house": "参議院",
+      "collect_from": "2020-08-01",
+      "expected_groups": [
+        "れいわ新選組",
+        "いのちの党"
+      ],
+      "note": "いのちの党（旧れいわ新選組）共同代表。ALS当事者。新代表の山本譲司は発言4件でプロファイル作成不可のため共同代表を採用。",
+      "website": "https://tennohatakenimihanarunoka.com/",
+      "web_sources": [
+        {
+          "url": "https://tennohatakenimihanarunoka.com/policy/",
+          "label": "政策",
+          "follow": false
+        }
+      ],
+      "active": true
+    }
+  ],
+  "_web_note": [
+    "website は公式サイトのトップ。web_sources は実際に取得する政策・理念ページ。",
+    "discover-web.mjs で候補を洗い出し、目視で確定させる。",
+    "公式サイト由来のテキストは公文書ではないため、evidence では原文引用せず要約＋リンクで扱う。",
+    "robots.txt でAIクローラーを拒否しているサイトは fetch-web.mjs が自動でスキップする。",
+    "その場合や、うまく本文が取れない場合は data/manual/{speaker_id}.md に手で置けば取り込まれる。",
+    "web_sources は「本人が一人称で書いた政策・理念の文章」に限る。議事録の転載や報道記事は、他人の発言が混ざるので使わない。"
+  ],
+  "_active_note": [
+    "active: false は現職でなくなった議員。データは残すが集計・マッチ候補からは外す。",
+    "2026年8月時点で、れいわ新選組は党名を「いのちの党」（略称:いのち）に変更している。",
+    "発言時点の会派は party_at_time（APIのspeakerGroup）が持つので、旧党名の発言もそのまま使える。"
+  ]
+}
