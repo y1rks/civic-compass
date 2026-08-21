@@ -7,7 +7,6 @@ export type Article = {
   image: string;
   source: string;
   publishedAt: string;
-  readTime: string;
 };
 
 export type SavedInterest = {

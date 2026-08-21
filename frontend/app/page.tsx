@@ -144,7 +144,7 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
                 {saved[article.id] && <span className="saved-badge"><Check size={11} /> 関心あり</span>}
               </div>
               <div className="article-body">
-                <div className="article-meta"><span>{article.category}</span><span>{article.readTime}</span></div>
+                <div className="article-meta"><span>{article.category}</span></div>
                 <h2>{article.title}</h2>
                 {index === 0 && <p>{article.summary}</p>}
                 <div className="article-source"><span>{article.source}</span><span>{article.publishedAt}</span></div>
@@ -172,7 +172,7 @@ function ArticleDetail({ article, comment, setComment, isSaved, saving, onBack, 
       <article>
         <img className="hero-image" src={article.image} alt="" />
         <div className="article-detail-body">
-          <div className="detail-category"><span>{article.category}</span><span>{article.publishedAt}・{article.readTime}</span></div>
+          <div className="detail-category"><span>{article.category}</span><span>{article.publishedAt}</span></div>
           <h1>{article.title}</h1>
           <p className="lead">{article.summary}</p>
           <div className="byline"><span className="source-avatar">P</span><div><strong>{article.source}</strong><small>政治・社会編集部</small></div></div>
