@@ -2,7 +2,7 @@
 
 日々の政治ニュースへの関心を記録し、自分と考えが近い政治家を見つけるためのスマートフォン向けWebアプリです。
 
-現在は画面のプロトタイプ段階です。ニュース、関心情報の保存、政治家のマッチングは、APIが返すスタブで動いています。
+現在は画面のプロトタイプ段階です。ニュースはD1に投入したサンプル記事をAPI経由で表示し、関心情報の保存と政治家のマッチングはAPIが返すスタブで動いています。
 
 保存した関心情報とコメントはブラウザの `localStorage` に保存され、外部には公開されません。
 
@@ -43,7 +43,7 @@ civic-compass/
     │   ├── bindings.ts    # D1 などバインディングの型
     │   ├── data/          # APIが返すデモ用データ
     │   └── routes/        # エンドポイント（ファイル名 = URL）
-    │       ├── articles.ts # -> /api/articles（記事一覧スタブ）
+    │       ├── articles.ts # -> /api/articles（D1から記事一覧を取得）
     │       ├── example.ts # -> /api/example（雛形）
     │       ├── health.ts  # -> /api/health（D1疎通確認）
     │       ├── interests.ts # -> /api/interests（関心情報スタブ）
@@ -212,13 +212,13 @@ app.route("/api/articles", articles);
 | `getMatches()` | `GET /api/matches/:articleId` から記事単位の政治家マッチを取得 |
 | `getProfileMatches()` | `POST /api/matches/profile` から総合マッチを取得 |
 
-データ型は [`frontend/lib/types.ts`](./frontend/lib/types.ts) に定義しています。実データへ切り替える際は、フロント側の呼び出し方を保ったままAPI側のスタブをD1や外部データソースへ置き換えられます。
+データ型は [`frontend/lib/types.ts`](./frontend/lib/types.ts) に定義しています。ニュース以外のスタブも、フロント側の呼び出し方を保ったままD1や外部データソースへ置き換えられます。
 
 ## データベース (Cloudflare D1)
 
 D1 は Workers から SQL で操作する SQLite ベースのデータベースです。テーブル定義は [`db/src/schema.ts`](./db/src/schema.ts) にまとめ、API Workerから利用します。ORMにはDrizzleを使います。
 
-> **現在テーブルは未定義です。** 仕組み（ワークスペース、マイグレーション、バインディング）だけ用意してある状態なので、DBを使い始めるときに `db/src/schema.ts` へテーブルを追加してください。
+`articles` テーブルには、画面確認用のサンプル記事を初期マイグレーションで投入します。本文の段落配列は、D1ではJSON文字列として保存し、APIで配列に戻して返します。
 
 ### マイグレーション手順
 
@@ -254,11 +254,12 @@ npm exec -w api -- wrangler d1 execute DB --local --persist-to ../.wrangler/stat
 
 ### api から使う
 
-テーブルを定義したあと、ルーターの中で `c.env.DB` を `createDb()` に渡します。
+ルーター内で `c.env.DB` を `createDb()` に渡して利用します。
 
 ```ts
 // api/src/routes/articles.ts
 import { Hono } from "hono";
+import { asc } from "drizzle-orm";
 import { articles as articlesTable, createDb } from "@civic-compass/db";
 import type { AppEnv } from "../bindings";
 
@@ -266,7 +267,13 @@ const articles = new Hono<AppEnv>();
 
 articles.get("/", async (c) => {
   const db = createDb(c.env.DB);
-  return c.json({ articles: await db.select().from(articlesTable).limit(20) });
+  const rows = await db.select().from(articlesTable).orderBy(asc(articlesTable.displayOrder));
+  return c.json({
+    articles: rows.map(({ displayOrder: _, body, ...article }) => ({
+      ...article,
+      body: JSON.parse(body) as string[],
+    })),
+  });
 });
 
 export default articles;
