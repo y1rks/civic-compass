@@ -4,6 +4,8 @@ import type { AppEnv } from "./bindings";
 import articles from "./routes/articles";
 import example from "./routes/example";
 import health from "./routes/health";
+import interests from "./routes/interests";
+import matches from "./routes/matches";
 
 const app = new Hono<AppEnv>();
 
@@ -32,6 +34,8 @@ app.get("/", (c) =>
 app.route("/api/articles", articles);
 app.route("/api/example", example);
 app.route("/api/health", health);
+app.route("/api/interests", interests);
+app.route("/api/matches", matches);
 
 app.onError((error, c) => {
   console.error(JSON.stringify({

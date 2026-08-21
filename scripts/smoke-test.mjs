@@ -26,4 +26,10 @@ if (!Array.isArray(articles?.articles) || articles.articles.length === 0) {
   throw new Error(`Unexpected articles response: ${JSON.stringify(articles)}`);
 }
 
+const matches = await (await expectOk(`/api/matches/${articles.articles[0].id}`)).json();
+
+if (!Array.isArray(matches?.matches) || matches.matches.length === 0) {
+  throw new Error(`Unexpected matches response: ${JSON.stringify(matches)}`);
+}
+
 console.log(`Smoke test passed: ${new URL(baseUrl).origin}`);

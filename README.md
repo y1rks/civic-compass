@@ -2,7 +2,7 @@
 
 日々の政治ニュースへの関心を記録し、自分と考えが近い政治家を見つけるためのスマートフォン向けWebアプリです。
 
-現在は画面のプロトタイプ段階です。ニュースはAPIが返すスタブ、関心情報の保存と政治家のマッチングはフロントエンド内のスタブで動いています。
+現在は画面のプロトタイプ段階です。ニュース、関心情報の保存、政治家のマッチングは、APIが返すスタブで動いています。
 
 保存した関心情報とコメントはブラウザの `localStorage` に保存され、外部には公開されません。
 
@@ -30,7 +30,7 @@ civic-compass/
 │   │   ├── globals.css    # スマートフォン向けスタイル
 │   │   └── layout.tsx     # メタデータと共通レイアウト
 │   ├── lib/
-│   │   ├── api.ts         # APIクライアントと未接続機能のスタブ
+│   │   ├── api.ts         # APIクライアント
 │   │   └── types.ts       # 画面が使うデータ型
 │   ├── tests/             # SSR結果のテスト
 │   ├── worker/index.ts    # Cloudflare Worker のエントリポイント
@@ -45,7 +45,9 @@ civic-compass/
     │   └── routes/        # エンドポイント（ファイル名 = URL）
     │       ├── articles.ts # -> /api/articles（記事一覧スタブ）
     │       ├── example.ts # -> /api/example（雛形）
-    │       └── health.ts  # -> /api/health（D1疎通確認）
+    │       ├── health.ts  # -> /api/health（D1疎通確認）
+    │       ├── interests.ts # -> /api/interests（関心情報スタブ）
+    │       └── matches.ts # -> /api/matches（政治家マッチスタブ）
     ├── wrangler.jsonc     # Cloudflare Workers の設定
     └── package.json
 ```
@@ -201,16 +203,16 @@ app.route("/api/articles", articles);
 
 ### 現在のAPI連携
 
-記事一覧は [`api/src/data/articles.ts`](./api/src/data/articles.ts) のスタブを `GET /api/articles` で返し、[`frontend/lib/api.ts`](./frontend/lib/api.ts) の `getArticles()` が取得します。ほかの機能は、まだフロントエンド内のスタブで動いています。
+画面が使うデモデータと計算処理は `api/` 側にあり、[`frontend/lib/api.ts`](./frontend/lib/api.ts) は各エンドポイントを呼び出します。関心情報はAPIが保存結果のスタブを返したあと、引き続きブラウザの `localStorage` に保存します。
 
 | 関数 | 用途 |
 | --- | --- |
 | `getArticles()` | `GET /api/articles` からニュース一覧を取得 |
-| `saveInterest()` | 関心情報とコメントの保存 |
-| `getMatches()` | 記事単位の政治家マッチ取得 |
-| `getProfileMatches()` | マイページの総合マッチ取得 |
+| `saveInterest()` | `POST /api/interests` から関心情報の保存結果を取得 |
+| `getMatches()` | `GET /api/matches/:articleId` から記事単位の政治家マッチを取得 |
+| `getProfileMatches()` | `POST /api/matches/profile` から総合マッチを取得 |
 
-`api/` 側の実装が進んだら、画面側の呼び出し方を変えずに、これらの関数の中身を `fetch("/api/...")` へ差し替える想定です。データ型は [`frontend/lib/types.ts`](./frontend/lib/types.ts) に定義しています。
+データ型は [`frontend/lib/types.ts`](./frontend/lib/types.ts) に定義しています。実データへ切り替える際は、フロント側の呼び出し方を保ったままAPI側のスタブをD1や外部データソースへ置き換えられます。
 
 ## データベース (Cloudflare D1)
 
@@ -354,17 +356,15 @@ API のポートは wrangler のデフォルト (8787) ではなく **8000** を
 - ニュース記事と政治家はデモ用のサンプルデータです。
 - 政治家名、政党、選挙区、マッチ度、マッチ理由はすべて架空です。
 - 政治家個人ページのリンク先はデモ用URLです。
-- 関心情報はDBではなく、利用中のブラウザにのみ保存されます。
+- 関心情報保存APIは結果のスタブを返すだけで、永続化は利用中のブラウザのみに行います。
 - ブラウザのデータを削除すると、保存した関心情報も削除されます。
 - ユーザー認証、複数端末間の同期、実際のLLM分析は未実装です。
 
-## 今後のAPI連携時に必要な対応
+## 今後必要な対応
 
-1. 関心情報保存APIを `api/` に実装し、`saveInterest()` から呼ぶ
-2. LLMを利用する政治家マッチAPIを `api/` に実装し、`getMatches()` から呼ぶ
-3. ユーザー単位の総合マッチAPIを `api/` に実装し、`getProfileMatches()` から呼ぶ
-4. 認証を導入し、`localStorage` の関心情報を D1 へ移す
-5. 実在する政治家情報と公式WebサイトURLをAPIから取得する
+1. 認証を導入し、`localStorage` の関心情報を D1 へ移す
+2. 政治家マッチAPIのスタブを実際のLLM分析へ置き換える
+3. 実在する政治家情報と公式WebサイトURLをAPIから取得する
 
 DBを使う段階になったら、まず[`db/src/schema.ts`](./db/src/schema.ts)にテーブルを定義し、APIから参照してください。
 
