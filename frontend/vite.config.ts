@@ -4,22 +4,7 @@ import { defineConfig } from "vite";
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
-const localBindingConfig = {
-  main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
-  // api/wrangler.jsonc の d1_databases と binding 名・database_name を揃えます。
-  // これと persistState の組み合わせで、api と同じローカルDBを参照します。
-  d1_databases: [
-    {
-      binding: "DB",
-      database_name: "civic-compass-db",
-      database_id: "00000000-0000-0000-0000-000000000000",
-    },
-  ],
-};
-
-// ローカルDBの保存先。api 側は `wrangler dev --persist-to ../.wrangler/state` で
-// 同じ場所を指しているため、frontend と api が同一のD1を読み書きします。
+// ローカルの Cloudflare ランタイム状態はリポジトリ内へ保存します。
 const sharedPersistPath = "../.wrangler/state";
 
 export default defineConfig(async () => {
@@ -51,7 +36,7 @@ export default defineConfig(async () => {
       vinext(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig,
+        configPath: "./wrangler.jsonc",
         persistState: { path: sharedPersistPath },
       }),
     ],

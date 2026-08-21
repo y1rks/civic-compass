@@ -16,7 +16,18 @@ export default function HomePage() {
   const [visibleCount, setVisibleCount] = useState(5);
   const [selected, setSelected] = useState<Article | null>(null);
   const [comment, setComment] = useState("");
-  const [saved, setSaved] = useState<Record<string, SavedInterest>>({});
+  const [saved, setSaved] = useState<Record<string, SavedInterest>>(() => {
+    if (typeof window === "undefined") return {};
+
+    const stored = window.localStorage.getItem("civic-compass-interests");
+    if (!stored) return {};
+
+    try {
+      return JSON.parse(stored) as Record<string, SavedInterest>;
+    } catch {
+      return {};
+    }
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
@@ -25,8 +36,6 @@ export default function HomePage() {
 
   useEffect(() => {
     getArticles().then(setArticles);
-    const stored = window.localStorage.getItem("civic-compass-interests");
-    if (stored) setSaved(JSON.parse(stored));
   }, []);
 
   useEffect(() => {

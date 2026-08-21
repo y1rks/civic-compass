@@ -31,7 +31,6 @@ civic-compass/
 │   │   └── layout.tsx     # メタデータと共通レイアウト
 │   ├── lib/
 │   │   ├── api.ts         # APIスタブとサンプルデータ
-│   │   ├── db.ts          # Server Component から D1 を使う入口
 │   │   └── types.ts       # 画面が使うデータ型
 │   ├── tests/             # SSR結果のテスト
 │   ├── worker/index.ts    # Cloudflare Worker のエントリポイント
@@ -43,12 +42,13 @@ civic-compass/
     │   ├── index.ts       # ルーターの登録
     │   ├── bindings.ts    # D1 などバインディングの型
     │   └── routes/        # エンドポイント（ファイル名 = URL）
-    │       └── example.ts # -> /api/example（雛形）
+    │       ├── example.ts # -> /api/example（雛形）
+    │       └── health.ts  # -> /api/health（D1疎通確認）
     ├── wrangler.jsonc     # Cloudflare Workers の設定
     └── package.json
 ```
 
-DBスキーマを `db/` に切り出しているのは、frontend と api の両方が同じテーブル定義と型を参照するためです。
+DBスキーマを `db/` に切り出し、API Worker からD1を型安全に利用します。フロントエンドはD1へ直接接続せず、`/api/*`経由でAPI Workerを呼び出します。
 
 ## 主な機能
 
@@ -97,7 +97,7 @@ npm run dev
 
 ブラウザで http://localhost:3000 を開いてください。ログは `[frontend]` `[api]` の接頭辞で色分けして表示されます。
 
-APIが起動しているかを確かめるには http://localhost:8000/ を開きます。公開中のエンドポイント一覧が返れば正常です。個別のエンドポイントは `/api` 以下にあり、初期状態では雛形の http://localhost:8000/api/example だけが登録されています。
+APIが起動しているかを確かめるには http://localhost:8000/api/health を開きます。`database`が`connected`なら、APIからD1まで正常に接続できています。雛形の http://localhost:8000/api/example も利用できます。
 
 ポート3000が使用中の場合は、3001など別のポートで起動します。実際にターミナルへ表示されたURLを使用してください。
 
@@ -212,7 +212,7 @@ app.route("/api/articles", articles);
 
 ## データベース (Cloudflare D1)
 
-D1 は Workers から SQL で操作する SQLite ベースのデータベースです。テーブル定義は [`db/src/schema.ts`](./db/src/schema.ts) の1か所にまとめ、frontend と api の両方が同じ定義を参照します。ORM には Drizzle を使います。
+D1 は Workers から SQL で操作する SQLite ベースのデータベースです。テーブル定義は [`db/src/schema.ts`](./db/src/schema.ts) にまとめ、API Workerから利用します。ORMにはDrizzleを使います。
 
 > **現在テーブルは未定義です。** 仕組み（ワークスペース、マイグレーション、バインディング）だけ用意してある状態なので、DBを使い始めるときに `db/src/schema.ts` へテーブルを追加してください。
 
@@ -270,42 +270,19 @@ export default articles;
 
 ### frontend から使う
 
-Server Component / Server Action から [`frontend/lib/db.ts`](./frontend/lib/db.ts) の `getDb()` を呼びます。
+フロントエンドからは`fetch("/api/...")`でAPI Workerを呼び出します。ローカルではVite proxy、本番ではCloudflare Service Bindingが同じパスを転送するため、CORS設定や環境別API URLは不要です。D1バインディングはAPI Workerだけが持ちます。
 
-```tsx
-import { articles, getDb } from "../lib/db";
+### Cloudflare 上のD1
 
-export default async function Page() {
-  const rows = await getDb().select().from(articles).limit(5);
-  return <ArticleList articles={rows} />;
-}
-```
+本番用の`civic-compass-db`は作成済みで、[`api/wrangler.jsonc`](./api/wrangler.jsonc)にIDを設定しています。配置先はCloudflareの自動選択に任せ、現在はAPACリージョンに配置されています。
 
-クライアントコンポーネント（`"use client"`）からは呼べません。ブラウザ側で必要なデータは、api 経由（`fetch("/api/...")`）で取得するか、Server Component で取得して props で渡してください。
-
-### ローカルDBの共有について
-
-frontend と api は別プロセスで起動しますが、次の設定で**同じローカルD1**を読み書きします。
-
-| ワークスペース | 設定箇所 | 内容 |
-| --- | --- | --- |
-| frontend | [`vite.config.ts`](./frontend/vite.config.ts) | `persistState: { path: "../.wrangler/state" }` |
-| api | [`package.json`](./api/package.json) | `wrangler dev --persist-to ../.wrangler/state` |
-
-実体はリポジトリ直下の `.wrangler/state/v3/d1/` に作られます（gitignore 済み）。バインディング名 `DB` と `database_name` も両者で揃えてあります。片方だけ変更すると別々のDBを見てしまうので注意してください。
-
-### Cloudflare 上にD1を作る
-
-現在 `database_id` はプレースホルダーです。実際にCloudflareへデプロイする際は、次の手順で作成してIDを設定してください。
+別のCloudflareアカウントへ複製する場合だけ、次のコマンドで新しいD1を作成してください。
 
 ```bash
 npm exec -w api -- wrangler d1 create civic-compass-db
 ```
 
-出力された `database_id` を2か所に反映します。
-
-1. [`api/wrangler.jsonc`](./api/wrangler.jsonc) の `d1_databases[0].database_id`
-2. [`frontend/vite.config.ts`](./frontend/vite.config.ts) の `localBindingConfig.d1_databases[0].database_id`
+出力された`database_id`を[`api/wrangler.jsonc`](./api/wrangler.jsonc)の`d1_databases[0].database_id`へ反映します。D1のIDは秘密情報ではありません。
 
 ## よく使うコマンド
 
@@ -318,7 +295,8 @@ npm exec -w api -- wrangler d1 create civic-compass-db
 | `npm run lint` | リポジトリ全体の ESLint |
 | `npm run lint:fix` | ESLint の自動修正を適用 |
 | `npm run test` | フロントエンドのSSR結果のテスト |
-| `npm run typecheck` | db と api の型チェック |
+| `npm run typecheck` | frontend、api、dbの型とWrangler生成型をチェック |
+| `npm run cf:typegen` | Wrangler設定からBinding型を再生成 |
 | `npm run db:generate` | スキーマ変更からマイグレーションSQLを生成 |
 | `npm run db:migrate` | ローカルD1へマイグレーションを適用 |
 | `npm run db:migrate:remote` | Cloudflare上のD1へマイグレーションを適用 |
@@ -342,7 +320,25 @@ npm install <package> -w api    # api にだけ依存を追加する
 
 ## デプロイ
 
-このリポジトリを操作しても自動的に外部へデプロイされることはありません。API を Cloudflare へ公開する場合は `npm run deploy -w api` を実行します。
+`main`ブランチへのpushで[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)が起動し、検証、D1マイグレーション、API Worker、Frontend Workerの順でデプロイします。
+
+初回デプロイ前にGitHubリポジトリの`Settings > Secrets and variables > Actions`へ次を登録してください。
+
+| 種別 | 名前 | 内容 |
+| --- | --- | --- |
+| Secret | `CLOUDFLARE_ACCOUNT_ID` | デプロイ先CloudflareアカウントID |
+| Secret | `CLOUDFLARE_API_TOKEN` | 対象アカウントに限定したWorkers編集用APIトークン |
+| Variable（任意） | `CIVIC_COMPASS_PUBLIC_URL` | 発行後の`https://civic-compass.<subdomain>.workers.dev`。設定時のみスモークテストを実行 |
+
+API Workerは`workers.dev`へ公開せず、Frontend Workerの`API` Service Bindingからのみ呼び出します。Frontend Workerは`https://civic-compass.<subdomain>.workers.dev`で公開され、`/api/*`をAPI Workerへ転送します。
+
+手動で同じ順序を実行する場合は次のコマンドを使います。
+
+```bash
+node scripts/migrate-d1-remote.mjs
+npm run deploy:api
+npm run deploy:frontend
+```
 
 ## ポートについて
 
@@ -369,6 +365,6 @@ API のポートは wrangler のデフォルト (8787) ではなく **8000** を
 5. 認証を導入し、`localStorage` の関心情報を D1 へ移す
 6. 実在する政治家情報と公式WebサイトURLをAPIから取得する
 
-DBを使う段階になったら、まず [`db/src/schema.ts`](./db/src/schema.ts) にテーブルを定義してください。frontend と api の両方が同じ定義を参照します。
+DBを使う段階になったら、まず[`db/src/schema.ts`](./db/src/schema.ts)にテーブルを定義し、APIから参照してください。
 
 政治的な判断に関わる情報を扱うため、本番運用時にはマッチングロジックの説明可能性、データの更新日、情報源、プライバシーポリシーも明示してください。

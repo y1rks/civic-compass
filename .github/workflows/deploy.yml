@@ -1,0 +1,56 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: cloudflare-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build -w api
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Validate Cloudflare configuration
+        run: node scripts/validate-cloudflare-deploy.mjs
+      - name: Apply D1 migrations
+        run: node scripts/migrate-d1-remote.mjs
+      - name: Deploy API Worker
+        run: npm run deploy:api
+      - name: Deploy Frontend Worker
+        run: npm run deploy:frontend
+      - name: Smoke test
+        if: ${{ vars.CIVIC_COMPASS_PUBLIC_URL != '' }}
+        env:
+          CIVIC_COMPASS_PUBLIC_URL: ${{ vars.CIVIC_COMPASS_PUBLIC_URL }}
+        run: node scripts/smoke-test.mjs

@@ -2,6 +2,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./bindings";
 import example from "./routes/example";
+import health from "./routes/health";
 
 const app = new Hono<AppEnv>();
 
@@ -28,5 +29,17 @@ app.get("/", (c) =>
 //    src/routes/articles.ts   ->  /api/articles
 //    src/routes/interests.ts  ->  /api/interests
 app.route("/api/example", example);
+app.route("/api/health", health);
+
+app.onError((error, c) => {
+  console.error(JSON.stringify({
+    message: "Unhandled API error",
+    error: error.message,
+    method: c.req.method,
+    path: c.req.path,
+  }));
+
+  return c.json({ status: "error", message: "Internal server error" }, 500);
+});
 
 export default app;
