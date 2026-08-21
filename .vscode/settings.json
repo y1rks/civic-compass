@@ -1,0 +1,31 @@
+{
+  // 保存時に ESLint で自動修正できるものを直します。
+  // 自動修正できない指摘（React Hooks の警告など）はエディタ上に波線で残ります。
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // リポジトリ直下の eslint.config.mjs を全ワークスペースに適用します。
+  "eslint.workingDirectories": [{ "mode": "location" }],
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+
+  // 生成物や依存はエディタの検索・監視から外します。
+  "files.exclude": {
+    "**/.wrangler": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.next": true,
+    "**/.vinext": true,
+    "**/.wrangler": true,
+    "package-lock.json": true
+  },
+
+  "typescript.tsdk": "node_modules/typescript/lib"
+}

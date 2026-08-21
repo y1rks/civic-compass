@@ -19,7 +19,8 @@
     "start": "concurrently -k -n frontend,api -c cyan,magenta \"npm:start:frontend\" \"npm:start:api\"",
     "start:frontend": "npm run start -w frontend",
     "start:api": "npm run start -w api",
-    "lint": "npm run lint -w frontend",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "npm run test -w frontend",
     "typecheck": "npm run typecheck -w @civic-compass/db && npm run typecheck -w api",
     "db:generate": "npm run generate -w @civic-compass/db",
@@ -27,6 +28,9 @@
     "db:migrate:remote": "npm run db:migrate:remote -w api"
   },
   "devDependencies": {
-    "concurrently": "10.0.5"
+    "concurrently": "10.0.5",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "typescript-eslint": "8.67.0"
   }
 }

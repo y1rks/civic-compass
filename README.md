@@ -15,6 +15,8 @@ civic-compass/
 ├── package.json           # ワークスペース定義と、まとめて起動するコマンド
 ├── package-lock.json      # 依存関係のロック（リポジトリ全体で1つ）
 ├── .gitignore             # 無視設定（リポジトリ全体で1つ）
+├── eslint.config.mjs      # Lint設定（リポジトリ全体で1つ）
+├── .vscode/               # 保存時Lintなどのエディタ設定
 ├── db/                    # DBスキーマ（frontend と api の共通ワークスペース）
 │   ├── src/
 │   │   ├── schema.ts      # テーブル定義
@@ -103,6 +105,14 @@ APIが起動しているかを確かめるには http://localhost:8000/api/healt
 npm run dev:frontend   # 画面のみ
 npm run dev:api        # APIのみ
 ```
+
+## エディタ設定 (VSCode)
+
+初回に、推奨拡張の [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) をインストールしてください。リポジトリを開くと右下に通知が出ます（拡張機能タブで「推奨」からも入れられます）。
+
+インストールすると、[`.vscode/settings.json`](./.vscode/settings.json) の設定により**保存時に ESLint が自動で走り、修正できる指摘は自動修正**されます。自動修正できない指摘は波線で表示されます。
+
+Lint の設定はリポジトリ直下の [`eslint.config.mjs`](./eslint.config.mjs) 1つで、frontend・api・db のすべてを対象にしています。意図的に使わない引数や変数は `_` で始めると警告になりません。
 
 ## 画面構成
 
@@ -258,7 +268,8 @@ npm exec -w api -- wrangler d1 create civic-compass-db
 | --- | --- |
 | `npm run dev` | フロントエンドとAPIを同時に起動 |
 | `npm run build` | 両方の本番ビルドを確認 |
-| `npm run lint` | フロントエンドの ESLint |
+| `npm run lint` | リポジトリ全体の ESLint |
+| `npm run lint:fix` | ESLint の自動修正を適用 |
 | `npm run test` | フロントエンドのSSR結果のテスト |
 | `npm run typecheck` | db と api の型チェック |
 | `npm run db:generate` | スキーマ変更からマイグレーションSQLを生成 |

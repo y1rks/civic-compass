@@ -1,0 +1,4 @@
+{
+  // 保存時のLintに必要です。VSCode の「拡張機能」タブに推奨として表示されます。
+  "recommendations": ["dbaeumer.vscode-eslint"]
+}
