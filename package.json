@@ -19,9 +19,7 @@
     "start:frontend": "npm run start -w frontend",
     "start:api": "npm run start -w api",
     "lint": "npm run lint -w frontend",
-    "test": "npm run test -w frontend",
-    "typecheck": "npm run typecheck -w api",
-    "db:generate": "npm run db:generate -w frontend"
+    "typecheck": "npm run typecheck -w api"
   },
   "devDependencies": {
     "concurrently": "10.0.5"

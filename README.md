@@ -158,9 +158,7 @@ D1 などのバインディングを追加する場合は [`api/wrangler.jsonc`]
 | `npm run dev` | フロントエンドとAPIを同時に起動 |
 | `npm run build` | 両方の本番ビルドを確認 |
 | `npm run lint` | フロントエンドの ESLint |
-| `npm run test` | フロントエンドのテスト |
 | `npm run typecheck` | APIの型チェック |
-| `npm run db:generate` | Drizzle のマイグレーション生成 |
 
 特定のワークスペースでコマンドを実行したい場合は `-w` を使います。
 
@@ -177,7 +175,6 @@ npm install <package> -w api    # api にだけ依存を追加する
 | 画面 | React 19 / vinext (Next.js互換) / TypeScript / Tailwind CSS / Lucide React |
 | API | Cloudflare Workers / Hono / TypeScript |
 | ビルド・実行 | npm workspaces / Vite / wrangler |
-| DB（未使用） | Drizzle ORM / Cloudflare D1 |
 
 ## デプロイ
 
