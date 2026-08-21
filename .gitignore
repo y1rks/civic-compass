@@ -29,6 +29,9 @@ coverage/
 .DS_Store
 *.pem
 
+# claude code（個人用コンテキスト。CLAUDE.md から @ import して使う）
+CLAUDE.personalize.md
+
 # debug
 npm-debug.log*
 yarn-debug.log*
