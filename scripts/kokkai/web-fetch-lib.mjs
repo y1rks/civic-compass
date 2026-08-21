@@ -20,7 +20,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
  * クロール間隔を空けて取得する。
  *
- * 中間証明書を配信していないサイト（小泉進次郎の shinjiro.info など）は Node の fetch が
+ * 中間証明書を配信していないサイトは Node の fetch が
  * UNABLE_TO_VERIFY_LEAF_SIGNATURE で落ちるため、その場合だけ curl に切り替える。
  * curl も検証はするので、証明書の検証自体を無効化しているわけではない。
  */
