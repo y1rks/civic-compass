@@ -328,6 +328,7 @@ npm install <package> -w api    # api にだけ依存を追加する
 | --- | --- | --- |
 | Secret | `CLOUDFLARE_ACCOUNT_ID` | デプロイ先CloudflareアカウントID |
 | Secret | `CLOUDFLARE_API_TOKEN` | 対象アカウントに限定したWorkers編集用APIトークン |
+| Variable | `CLOUDFLARE_WORKERS_SUBDOMAIN` | アカウント共通の`workers.dev`サブドメイン（現在は`atno`） |
 | Variable（任意） | `CIVIC_COMPASS_PUBLIC_URL` | 発行後の`https://civic-compass.<subdomain>.workers.dev`。設定時のみスモークテストを実行 |
 
 API Workerは`workers.dev`へ公開せず、Frontend Workerの`API` Service Bindingからのみ呼び出します。Frontend Workerは`https://civic-compass.<subdomain>.workers.dev`で公開され、`/api/*`をAPI Workerへ転送します。
