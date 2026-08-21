@@ -19,7 +19,7 @@ civic-compass/
 │   ├── src/
 │   │   ├── schema.ts      # テーブル定義
 │   │   └── client.ts      # D1 から drizzle クライアントを作る
-│   ├── migrations/        # 生成されたマイグレーションSQL
+│   ├── migrations/        # 生成されたマイグレーションSQL（db:generate 実行時に作られます）
 │   ├── drizzle.config.ts
 │   └── package.json
 ├── frontend/              # 画面
@@ -164,6 +164,8 @@ D1 などのバインディングを追加する場合は [`api/wrangler.jsonc`]
 
 D1 は Workers から SQL で操作する SQLite ベースのデータベースです。テーブル定義は [`db/src/schema.ts`](./db/src/schema.ts) の1か所にまとめ、frontend と api の両方が同じ定義を参照します。ORM には Drizzle を使います。
 
+> **現在テーブルは未定義です。** 仕組み（ワークスペース、マイグレーション、バインディング）だけ用意してある状態なので、DBを使い始めるときに `db/src/schema.ts` へテーブルを追加してください。
+
 ### マイグレーション手順
 
 スキーマを変更したら、**SQLの生成**と**DBへの適用**の2段階で反映します。どちらもリポジトリ直下で実行します。
@@ -178,7 +180,7 @@ npm run db:generate
 npm run db:migrate
 ```
 
-`npm run db:generate` は [`db/migrations/`](./db/migrations/) に `0001_xxx.sql` のような連番のSQLを生成します。**生成されたSQLはコミットしてください。** チームの他のメンバーは `npm run db:migrate` を実行するだけで同じ状態になります。
+`npm run db:generate` は `db/migrations/` に `0000_xxx.sql` のような連番のSQLを生成します（ディレクトリは初回実行時に作られます）。**生成されたSQLはコミットしてください。** チームの他のメンバーは `npm run db:migrate` を実行するだけで同じ状態になります。
 
 本番（Cloudflare 上のD1）へ適用する場合は次を実行します。
 
@@ -189,13 +191,16 @@ npm run db:migrate:remote
 ### ローカルDBの中身を見る
 
 ```bash
+# テーブル一覧
 npm exec -w api -- wrangler d1 execute DB --local --persist-to ../.wrangler/state \
-  --command "SELECT * FROM articles LIMIT 10;"
+  --command "SELECT name FROM sqlite_master WHERE type='table';"
 ```
+
+`--command` の中身を差し替えれば任意のSQLを実行できます。
 
 ### api から使う
 
-`c.env.DB` を `createDb()` に渡します。
+テーブルを定義したあと、`c.env.DB` を `createDb()` に渡します。
 
 ```ts
 import { articles, createDb } from "@civic-compass/db";
@@ -303,9 +308,9 @@ API のポートは wrangler のデフォルト (8787) ではなく **8000** を
 2. 関心情報保存APIを `api/` に実装し、`saveInterest()` から呼ぶ
 3. LLMを利用する政治家マッチAPIを `api/` に実装し、`getMatches()` から呼ぶ
 4. ユーザー単位の総合マッチAPIを `api/` に実装し、`getProfileMatches()` から呼ぶ
-5. 認証を導入し、`localStorage` の関心情報を D1 の `interests` テーブルへ移す
+5. 認証を導入し、`localStorage` の関心情報を D1 へ移す
 6. 実在する政治家情報と公式WebサイトURLをAPIから取得する
 
-テーブル定義（`articles` / `politicians` / `interests` / `matches`）は [`db/src/schema.ts`](./db/src/schema.ts) に用意済みです。データ投入や参照の実装から進められます。
+DBを使う段階になったら、まず [`db/src/schema.ts`](./db/src/schema.ts) にテーブルを定義してください。frontend と api の両方が同じ定義を参照します。
 
 政治的な判断に関わる情報を扱うため、本番運用時にはマッチングロジックの説明可能性、データの更新日、情報源、プライバシーポリシーも明示してください。
