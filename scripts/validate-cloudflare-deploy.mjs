@@ -16,13 +16,9 @@ if (!uuidPattern.test(databaseId)) {
 }
 
 if (process.env.GITHUB_ACTIONS === "true") {
-  for (const name of [
-    "CLOUDFLARE_ACCOUNT_ID",
-    "CLOUDFLARE_API_TOKEN",
-    "CLOUDFLARE_WORKERS_SUBDOMAIN",
-  ]) {
+  for (const name of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"]) {
     if (!process.env[name]) {
-      throw new Error(`GitHub Actionsのsecretまたはvariable ${name} が設定されていません。`);
+      throw new Error(`GitHub Actions secret ${name} が設定されていません。`);
     }
   }
 }

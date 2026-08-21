@@ -20,4 +20,16 @@ if (health?.status !== "ok" || health?.database !== "connected") {
   throw new Error(`Unexpected health response: ${JSON.stringify(health)}`);
 }
 
+const articles = await (await expectOk("/api/articles")).json();
+
+if (!Array.isArray(articles?.articles) || articles.articles.length === 0) {
+  throw new Error(`Unexpected articles response: ${JSON.stringify(articles)}`);
+}
+
+const matches = await (await expectOk(`/api/matches/${articles.articles[0].id}`)).json();
+
+if (!Array.isArray(matches?.matches) || matches.matches.length === 0) {
+  throw new Error(`Unexpected matches response: ${JSON.stringify(matches)}`);
+}
+
 console.log(`Smoke test passed: ${new URL(baseUrl).origin}`);

@@ -2,7 +2,7 @@
 
 日々の政治ニュースへの関心を記録し、自分と考えが近い政治家を見つけるためのスマートフォン向けWebアプリです。
 
-現在は画面のプロトタイプ段階です。ニュース、関心情報の保存、政治家のマッチングは、すべてフロントエンド内のスタブで動いています。
+現在は画面のプロトタイプ段階です。ニュースはD1に投入したサンプル記事をAPI経由で表示し、関心情報の保存と政治家のマッチングはAPIが返すスタブで動いています。
 
 保存した関心情報とコメントはブラウザの `localStorage` に保存され、外部には公開されません。
 
@@ -30,7 +30,7 @@ civic-compass/
 │   │   ├── globals.css    # スマートフォン向けスタイル
 │   │   └── layout.tsx     # メタデータと共通レイアウト
 │   ├── lib/
-│   │   ├── api.ts         # APIスタブとサンプルデータ
+│   │   ├── api.ts         # APIクライアント
 │   │   └── types.ts       # 画面が使うデータ型
 │   ├── tests/             # SSR結果のテスト
 │   ├── worker/index.ts    # Cloudflare Worker のエントリポイント
@@ -41,9 +41,13 @@ civic-compass/
     ├── src/
     │   ├── index.ts       # ルーターの登録
     │   ├── bindings.ts    # D1 などバインディングの型
+    │   ├── data/          # APIが返すデモ用データ
     │   └── routes/        # エンドポイント（ファイル名 = URL）
+    │       ├── articles.ts # -> /api/articles（D1から記事一覧を取得）
     │       ├── example.ts # -> /api/example（雛形）
-    │       └── health.ts  # -> /api/health（D1疎通確認）
+    │       ├── health.ts  # -> /api/health（D1疎通確認）
+    │       ├── interests.ts # -> /api/interests（関心情報スタブ）
+    │       └── matches.ts # -> /api/matches（政治家マッチスタブ）
     ├── wrangler.jsonc     # Cloudflare Workers の設定
     └── package.json
 ```
@@ -197,24 +201,24 @@ app.route("/api/articles", articles);
 
 [`api/wrangler.jsonc`](./api/wrangler.jsonc) に設定を書き、[`api/src/bindings.ts`](./api/src/bindings.ts) の `Bindings` 型に1行足すと、全ルーターで `c.env.DB` のように型付きで参照できます。
 
-### 現在のAPIスタブ
+### 現在のAPI連携
 
-画面が使うデータは、まだ [`frontend/lib/api.ts`](./frontend/lib/api.ts) 内のサンプルデータで動いています。
+画面が使うデモデータと計算処理は `api/` 側にあり、[`frontend/lib/api.ts`](./frontend/lib/api.ts) は各エンドポイントを呼び出します。関心情報はAPIが保存結果のスタブを返したあと、引き続きブラウザの `localStorage` に保存します。
 
 | 関数 | 用途 |
 | --- | --- |
-| `getArticles()` | ニュース一覧の取得 |
-| `saveInterest()` | 関心情報とコメントの保存 |
-| `getMatches()` | 記事単位の政治家マッチ取得 |
-| `getProfileMatches()` | マイページの総合マッチ取得 |
+| `getArticles()` | `GET /api/articles` からニュース一覧を取得 |
+| `saveInterest()` | `POST /api/interests` から関心情報の保存結果を取得 |
+| `getMatches()` | `GET /api/matches/:articleId` から記事単位の政治家マッチを取得 |
+| `getProfileMatches()` | `POST /api/matches/profile` から総合マッチを取得 |
 
-`api/` 側の実装が進んだら、画面側の呼び出し方を変えずに、これらの関数の中身を `fetch("/api/...")` へ差し替える想定です。データ型は [`frontend/lib/types.ts`](./frontend/lib/types.ts) に定義しています。
+データ型は [`frontend/lib/types.ts`](./frontend/lib/types.ts) に定義しています。ニュース以外のスタブも、フロント側の呼び出し方を保ったままD1や外部データソースへ置き換えられます。
 
 ## データベース (Cloudflare D1)
 
 D1 は Workers から SQL で操作する SQLite ベースのデータベースです。テーブル定義は [`db/src/schema.ts`](./db/src/schema.ts) にまとめ、API Workerから利用します。ORMにはDrizzleを使います。
 
-> **現在テーブルは未定義です。** 仕組み（ワークスペース、マイグレーション、バインディング）だけ用意してある状態なので、DBを使い始めるときに `db/src/schema.ts` へテーブルを追加してください。
+`articles` テーブルには、画面確認用のサンプル記事を初期マイグレーションで投入します。本文の段落配列は、D1ではJSON文字列として保存し、APIで配列に戻して返します。
 
 ### マイグレーション手順
 
@@ -250,11 +254,12 @@ npm exec -w api -- wrangler d1 execute DB --local --persist-to ../.wrangler/stat
 
 ### api から使う
 
-テーブルを定義したあと、ルーターの中で `c.env.DB` を `createDb()` に渡します。
+ルーター内で `c.env.DB` を `createDb()` に渡して利用します。
 
 ```ts
 // api/src/routes/articles.ts
 import { Hono } from "hono";
+import { asc } from "drizzle-orm";
 import { articles as articlesTable, createDb } from "@civic-compass/db";
 import type { AppEnv } from "../bindings";
 
@@ -262,7 +267,13 @@ const articles = new Hono<AppEnv>();
 
 articles.get("/", async (c) => {
   const db = createDb(c.env.DB);
-  return c.json({ articles: await db.select().from(articlesTable).limit(20) });
+  const rows = await db.select().from(articlesTable).orderBy(asc(articlesTable.displayOrder));
+  return c.json({
+    articles: rows.map(({ displayOrder: _, body, ...article }) => ({
+      ...article,
+      body: JSON.parse(body) as string[],
+    })),
+  });
 });
 
 export default articles;
@@ -328,7 +339,6 @@ npm install <package> -w api    # api にだけ依存を追加する
 | --- | --- | --- |
 | Secret | `CLOUDFLARE_ACCOUNT_ID` | デプロイ先CloudflareアカウントID |
 | Secret | `CLOUDFLARE_API_TOKEN` | 対象アカウントに限定したWorkers編集用APIトークン |
-| Variable | `CLOUDFLARE_WORKERS_SUBDOMAIN` | アカウント共通の`workers.dev`サブドメイン（現在は`atno`） |
 | Variable（任意） | `CIVIC_COMPASS_PUBLIC_URL` | 発行後の`https://civic-compass.<subdomain>.workers.dev`。設定時のみスモークテストを実行 |
 
 API Workerは`workers.dev`へ公開せず、Frontend Workerの`API` Service Bindingからのみ呼び出します。Frontend Workerは`https://civic-compass.<subdomain>.workers.dev`で公開され、`/api/*`をAPI Workerへ転送します。
@@ -353,18 +363,15 @@ API のポートは wrangler のデフォルト (8787) ではなく **8000** を
 - ニュース記事と政治家はデモ用のサンプルデータです。
 - 政治家名、政党、選挙区、マッチ度、マッチ理由はすべて架空です。
 - 政治家個人ページのリンク先はデモ用URLです。
-- 関心情報はDBではなく、利用中のブラウザにのみ保存されます。
+- 関心情報保存APIは結果のスタブを返すだけで、永続化は利用中のブラウザのみに行います。
 - ブラウザのデータを削除すると、保存した関心情報も削除されます。
 - ユーザー認証、複数端末間の同期、実際のLLM分析は未実装です。
 
-## 今後のAPI連携時に必要な対応
+## 今後必要な対応
 
-1. ニュース一覧APIを `api/` に実装し、`getArticles()` から呼ぶ
-2. 関心情報保存APIを `api/` に実装し、`saveInterest()` から呼ぶ
-3. LLMを利用する政治家マッチAPIを `api/` に実装し、`getMatches()` から呼ぶ
-4. ユーザー単位の総合マッチAPIを `api/` に実装し、`getProfileMatches()` から呼ぶ
-5. 認証を導入し、`localStorage` の関心情報を D1 へ移す
-6. 実在する政治家情報と公式WebサイトURLをAPIから取得する
+1. 認証を導入し、`localStorage` の関心情報を D1 へ移す
+2. 政治家マッチAPIのスタブを実際のLLM分析へ置き換える
+3. 実在する政治家情報と公式WebサイトURLをAPIから取得する
 
 DBを使う段階になったら、まず[`db/src/schema.ts`](./db/src/schema.ts)にテーブルを定義し、APIから参照してください。
 
