@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Compass, Heart,
   Home, LockKeyhole, MessageCircle, Sparkles, UserRound, X,
@@ -30,13 +30,41 @@ export default function HomePage() {
   });
   const [modalOpen, setModalOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [profileMatches, setProfileMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getArticles().then(setArticles);
+    let cancelled = false;
+    void getArticles()
+      .then((nextArticles) => {
+        if (!cancelled) setArticles(nextArticles);
+      })
+      .catch((error: unknown) => console.error("Failed to load articles", error));
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    const articleIds = Object.keys(saved);
+    if (articleIds.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    void getProfileMatches(articleIds)
+      .then((nextMatches) => {
+        if (!cancelled) setProfileMatches(nextMatches);
+      })
+      .catch((error: unknown) => console.error("Failed to load profile matches", error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [saved]);
 
   useEffect(() => {
     if (screen !== "feed" || visibleCount >= articles.length) return;
@@ -62,16 +90,19 @@ export default function HomePage() {
   const handleSave = async () => {
     if (!selected) return;
     setSaving(true);
-    const interest = await saveInterest(selected.id, comment.trim());
-    const next = { ...saved, [selected.id]: interest };
-    setSaved(next);
-    window.localStorage.setItem("civic-compass-interests", JSON.stringify(next));
-    setMatches(await getMatches(selected.id));
-    setSaving(false);
-    setModalOpen(true);
+    try {
+      const interest = await saveInterest(selected.id, comment.trim());
+      const next = { ...saved, [selected.id]: interest };
+      setSaved(next);
+      window.localStorage.setItem("civic-compass-interests", JSON.stringify(next));
+      setMatches(await getMatches(selected.id));
+      setModalOpen(true);
+    } catch (error) {
+      console.error("Failed to save interest", error);
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const profileMatches = useMemo(() => getProfileMatches(Object.keys(saved)), [saved]);
 
   return (
     <main className="app-shell">
