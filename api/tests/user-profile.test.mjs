@@ -76,6 +76,21 @@ test("interest が share に効く（関心の高い記事のセルが重くな�
   assert.ok(strong.share < weak.share * 2);
 });
 
+test("重視したセルが share にはっきり出る（擬似寄与に押し切られない）", () => {
+  // 同じセルに5問、他の4セルに1問ずつ。生の寄与の比は 5:1。
+  const rows = [
+    ...Array.from({ length: 5 }, (_, i) => row({ answerId: `a${i}`, target: "自然環境" })),
+    ...["地方", "個人", "国民全体", "女性"].map((target, i) => row({ answerId: `b${i}`, target })),
+  ];
+  const p = build(rows);
+  const strong = p.cells.find((c) => c.target === "自然環境");
+  const weak = p.cells.find((c) => c.target === "地方");
+
+  // 議員側の SHARE_PRIOR = 4.0 を当てると 1.5倍まで潰れ、マッチ計算の
+  // sqrt(u.share × p.share) がほぼ定数になって「何を重視したか」が効かなくなる。
+  assert.ok(strong.share > weak.share * 3, `重視度が潰れている: ${strong.share} / ${weak.share}`);
+});
+
 test("distinctiveness はユーザー側では持たない", () => {
   const p = build([row({})]);
   assert.ok(p.cells.every((c) => !("distinctiveness" in c)));

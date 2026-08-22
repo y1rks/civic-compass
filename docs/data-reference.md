@@ -510,9 +510,15 @@ GROUP BY s.frame, s.target, s.role;
 実測は1件でも 33% に跳ね、`k` が実態とかけ離れるため。
 
 集計の実体は `shared/src/user-profile.ts` の `aggregateUserProfile()`。
-D1 に依存しない純粋関数なので、C からも同じものを使える。計算式（`SHARE_PRIOR`、
+D1 に依存しない純粋関数なので、C からも同じものを使える。計算式（`smoothedShare()`、
 `overrideWeight()` など）は `shared/src/scoring.ts` が唯一の正で、**議員側の
 バッチと同じものを読んでいる**。
+
+ただし `share` の擬似寄与だけは側ごとに値が違う（`USER_SHARE_PRIOR = 0.5`。
+議員側は `SHARE_PRIOR = 4.0`）。擬似寄与は実データと同じ単位なので、1回答の寄与が
+`0.7 × 0.9 × interest ≦ 0.63` しかないユーザー側に 4.0 を当てると、share がほぼ均等に
+潰れて「何を重視したか」がマッチに効かなくなる。理由と実測は
+`docs/implementing-match-api.md`「`share` の擬似寄与だけは側ごとに変える」。
 
 ---
 
