@@ -128,7 +128,7 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
         </div>
         <p className="eyebrow">TODAY&apos;S ISSUES</p>
         <h1>ニュースから、<br />自分の政治を考える。</h1>
-        <p className="header-copy">気になる論点を選びながら、あなた自身の考えと近い政治家を見つけよう。</p>
+        <p className="header-copy">気になる論点を選びながら、<br />あなた自身の考えと近い政治家を見つけよう。</p>
         <div className="privacy-pill"><LockKeyhole size={13} /> 関心データはあなただけに表示されます</div>
       </header>
 
