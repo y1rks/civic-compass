@@ -6,6 +6,7 @@ import articles from "./routes/articles";
 import example from "./routes/example";
 import health from "./routes/health";
 import matches from "./routes/matches";
+import userProfile from "./routes/user-profile";
 
 const app = new Hono<AppEnv>();
 
@@ -36,6 +37,7 @@ app.route("/api/articles", articles);
 app.route("/api/example", example);
 app.route("/api/health", health);
 app.route("/api/matches", matches);
+app.route("/api/user-profile", userProfile);
 
 app.onError((error, c) => {
   console.error(JSON.stringify({

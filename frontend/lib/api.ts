@@ -1,4 +1,4 @@
-import type { Article, Match, SavedAnswer } from "./types";
+import type { Article, Match, SavedAnswer, UserProfileCell } from "./types";
 
 type ArticlesResponse = {
   articles: Article[];
@@ -14,6 +14,10 @@ type AnswerResponse = {
 
 type MatchesResponse = {
   matches: Match[];
+};
+
+type UserProfileResponse = {
+  cells: UserProfileCell[];
 };
 
 async function requestJson<T>(path: string, init: RequestInit | undefined, errorMessage: string): Promise<T> {
@@ -76,4 +80,13 @@ export async function getProfileMatches(articleIds: string[]): Promise<Match[]> 
     body: JSON.stringify({ articleIds }),
   }, "総合マッチの取得に失敗しました");
   return data.matches;
+}
+
+export async function getUserProfileCells(): Promise<UserProfileCell[]> {
+  const data = await requestJson<UserProfileResponse>(
+    "/api/user-profile",
+    undefined,
+    "考え方の傾向の取得に失敗しました",
+  );
+  return data.cells;
 }

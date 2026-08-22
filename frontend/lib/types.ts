@@ -55,3 +55,13 @@ export type Match = {
   color: string;
   website: string;
 };
+
+/** KV USER_PROFILES のうち、政治コンパス画面に表示する上位セル。 */
+export type UserProfileCell = {
+  frame: import("@civic-compass/shared").Frame;
+  target: import("@civic-compass/shared").Target;
+  role: import("@civic-compass/shared").CellRole;
+  score: number;
+  share: number;
+  n: number;
+};
