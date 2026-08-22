@@ -5,10 +5,11 @@ import {
   ArrowLeft, ArrowUpRight, Check, ChevronRight, Compass,
   Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
 } from "lucide-react";
-import { getAnswers, getArticles, getMatches, getProfileMatches, saveAnswer } from "../lib/api";
-import type { Article, Match, SavedAnswer } from "../lib/types";
+import { getAnswers, getArticles, getMatches, getProfileMatches, getUserProfileCells, saveAnswer } from "../lib/api";
+import type { Article, Match, SavedAnswer, UserProfileCell } from "../lib/types";
 import { DEFAULT_INTEREST, interestLabel } from "../lib/interest";
 import { OpinionSheet } from "./opinion-sheet";
+import { ProfileTrends } from "./profile-trends";
 import type { Answers } from "./question-block";
 
 type Screen = "feed" | "detail" | "profile";
@@ -26,6 +27,8 @@ export default function HomePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [profileMatches, setProfileMatches] = useState<Match[]>([]);
+  const [profileCells, setProfileCells] = useState<UserProfileCell[]>([]);
+  const [profileCellsStatus, setProfileCellsStatus] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -117,6 +120,26 @@ export default function HomePage() {
   }, [saved]);
 
   useEffect(() => {
+    if (screen !== "profile") return;
+
+    let cancelled = false;
+    void getUserProfileCells()
+      .then((cells) => {
+        if (cancelled) return;
+        setProfileCells(cells);
+        setProfileCellsStatus("ready");
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load user profile", error);
+        if (!cancelled) setProfileCellsStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [saved, screen]);
+
+  useEffect(() => {
     if (screen !== "feed" || visibleCount >= articles.length) return;
     const observer = new IntersectionObserver((entries) => {
       if (!entries[0]?.isIntersecting) return;
@@ -179,7 +202,7 @@ export default function HomePage() {
           onSave={handleSave}
         />
       )}
-      {screen === "profile" && <Profile matches={profileMatches} savedCount={Object.keys(saved).length} />}
+      {screen === "profile" && <Profile matches={profileMatches} savedCount={Object.keys(saved).length} cells={profileCells} cellsStatus={profileCellsStatus} />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
       {modalOpen && selected && <MatchModal article={selected} matches={matches} onClose={() => setModalOpen(false)} />}
     </main>
@@ -313,7 +336,17 @@ function MatchModal({ article, matches, onClose }: { article: Article; matches: 
   );
 }
 
-function Profile({ matches, savedCount }: { matches: Match[]; savedCount: number }) {
+function Profile({
+  matches,
+  savedCount,
+  cells,
+  cellsStatus,
+}: {
+  matches: Match[];
+  savedCount: number;
+  cells: UserProfileCell[];
+  cellsStatus: "loading" | "ready" | "error";
+}) {
   return (
     <div className="screen profile-screen">
       <header className="profile-header">
@@ -341,6 +374,7 @@ function Profile({ matches, savedCount }: { matches: Match[]; savedCount: number
             ))}
           </div>
         )}
+        <ProfileTrends cells={cells} status={cellsStatus} />
         <div className="profile-privacy"><LockKeyhole size={20} /><div><strong>あなたの関心は非公開です</strong><p>保存した記事やコメントが、他のユーザーや政治家に公開されることはありません。</p></div></div>
         <p className="demo-disclaimer dark-text">人物・政党・マッチ結果・リンク先はデモ用の架空データです。</p>
       </section>
