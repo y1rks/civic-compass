@@ -6,13 +6,13 @@ const ROLE_LABELS: Record<UserProfileCell["role"], string> = {
   threat: "脅威・問題の原因",
 };
 
-const scoreText = (score: number): string => {
-  if (score > 0) return "この価値を判断の根拠として重視";
-  if (score < 0) return "この価値より、ほかの価値を優先";
-  return "どちらの傾向にも偏っていない";
-};
+const tendencyText = (score: number): string => {
+  if (score === 0) return "どちらにも偏らない傾向";
 
-const formatScore = (score: number): string => `${score > 0 ? "+" : ""}${score.toFixed(2)}`;
+  const strength = Math.abs(score) >= 0.67 ? "強く" : Math.abs(score) >= 0.34 ? "" : "やや";
+  const subject = score > 0 ? "この価値を" : "ほかの価値を";
+  return `${subject}${strength}優先する傾向`;
+};
 
 export function ProfileTrends({
   cells,
@@ -51,12 +51,11 @@ export function ProfileTrends({
                     <h2>{FRAME_JA_PLAIN[cell.frame]}</h2>
                     <p><strong>{cell.target}</strong>を「{ROLE_LABELS[cell.role]}」として捉える</p>
                   </div>
-                  <strong className={`trend-score ${direction}`}>{formatScore(score)}</strong>
                 </div>
                 <div
                   className="trend-score-chart"
                   role="img"
-                  aria-label={`スコア ${formatScore(score)}。${scoreText(score)}`}
+                  aria-label={tendencyText(score)}
                 >
                   <span className="trend-chart-label left">ほかの価値を優先</span>
                   <span className="trend-chart-label right">この価値を重視</span>
@@ -66,13 +65,13 @@ export function ProfileTrends({
                     style={{ width: `${Math.abs(score) * 50}%` }}
                   />
                 </div>
-                <p className="trend-score-note">{scoreText(score)}</p>
+                <p className={`trend-score-note ${direction}`}>{tendencyText(score)}</p>
               </article>
             );
           })}
         </div>
       )}
-      <p className="trend-score-help">スコアは −1〜+1。政策への賛否ではなく、その価値を判断でどう扱ったかを表します。</p>
+      <p className="trend-score-help">政策への賛否ではなく、その価値を判断でどう扱ったかを表します。</p>
     </section>
   );
 }
