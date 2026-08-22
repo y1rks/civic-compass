@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, type PointerEvent } from "react";
 import { LockKeyhole, MessageCircle, MessageCircleMore } from "lucide-react";
 import type { Article, ArticleQuestionOption } from "../lib/types";
 import { INTEREST_LEVELS } from "../lib/interest";
@@ -20,13 +21,42 @@ export function OpinionSheet({
   onSave: () => void;
 }) {
   const complete = isAnswerComplete(article.questions, answers);
+  const grabberStartY = useRef<number | null>(null);
+  const grabberDragged = useRef(false);
+
+  const startDragging = (event: PointerEvent<HTMLButtonElement>) => {
+    if (!event.isPrimary) return;
+    grabberStartY.current = event.clientY;
+    grabberDragged.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const trackDragging = (event: PointerEvent<HTMLButtonElement>) => {
+    if (grabberStartY.current === null) return;
+    if (event.clientY - grabberStartY.current > 8) grabberDragged.current = true;
+  };
+
+  const finishDragging = (event: PointerEvent<HTMLButtonElement>) => {
+    const startY = grabberStartY.current;
+    grabberStartY.current = null;
+    if (startY !== null && event.clientY - startY >= 72) onCancel();
+  };
 
   return (
     <>
       <div className="sheet-backdrop" onClick={onCancel} />
       <div className="opinion-sheet" role="dialog" aria-modal="true" aria-label="この記事への意見">
         <div className="sheet-head">
-          <span className="sheet-grabber" />
+          <button
+            type="button"
+            className="sheet-grabber"
+            aria-label="シートを閉じる"
+            onPointerDown={startDragging}
+            onPointerMove={trackDragging}
+            onPointerUp={finishDragging}
+            onPointerCancel={() => { grabberStartY.current = null; }}
+            onClick={() => { if (!grabberDragged.current) onCancel(); }}
+          />
           <div className="sheet-title">
             <div><span className="sheet-icon"><MessageCircleMore size={17} /></span><strong>この記事への意見</strong></div>
             <span><LockKeyhole size={12} /> 非公開</span>

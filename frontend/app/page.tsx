@@ -30,6 +30,38 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  // オーバーレイの表示中に背景が動くと、閉じた後に記事の位置を見失います。
+  // iOS を含めて確実に止めるため、現在位置で body を固定して復元します。
+  useEffect(() => {
+    if (!sheetOpen && !modalOpen) return;
+
+    const { body, documentElement } = document;
+    const scrollY = window.scrollY;
+    const previousBodyStyles = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    const previousOverscrollBehavior = documentElement.style.overscrollBehavior;
+
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    documentElement.style.overscrollBehavior = "none";
+
+    return () => {
+      Object.assign(body.style, previousBodyStyles);
+      documentElement.style.overscrollBehavior = previousOverscrollBehavior;
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+    };
+  }, [sheetOpen, modalOpen]);
+
   useEffect(() => {
     let cancelled = false;
     void getArticles()
