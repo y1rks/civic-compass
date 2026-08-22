@@ -35,6 +35,8 @@ button { color:inherit; }
 .top-story,.saved-badge { position:absolute; top:10px; left:10px; border-radius:99px; padding:5px 9px; font-size:10px; font-weight:800; }
 .top-story { background:var(--coral); color:white; }
 .saved-badge { left:auto; right:10px; background:rgba(248,246,239,.94); color:var(--green); display:flex; gap:4px; align-items:center; }
+/* 「関心がない」で保存した記事。答えてはいるが関心はない、と分かる見た目にする。 */
+.saved-badge.muted { color:#7d8b88; }
 .article-body { padding:14px 14px 12px; min-width:0; display:flex; flex-direction:column; }
 .featured .article-body { padding:17px 17px 16px; }
 .article-meta,.article-source { display:flex; align-items:center; gap:7px; color:#798885; font-size:9px; }

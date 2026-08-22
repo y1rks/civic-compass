@@ -11,7 +11,11 @@ const compile = async (name) => {
   const out = new URL(`./${name}.compiled.mjs`, ROOT);
   const source = await readFile(new URL(`./${name}.tsx`, ROOT), "utf8");
   const { code } = await transform(source, { loader: "tsx", format: "esm", jsx: "automatic" });
-  await writeFile(out, code.replaceAll('"./question-block"', '"./question-block.compiled.mjs"'));
+  // Node の ESM は拡張子なしの指定を解決できないので、変換後に補います。
+  // .ts はそのまま読めます（Node 22 の型ストリップ）。
+  await writeFile(out, code
+    .replaceAll('"./question-block"', '"./question-block.compiled.mjs"')
+    .replaceAll('"../lib/interest"', '"../lib/interest.ts"'));
   return out;
 };
 const qb = await compile("question-block");
@@ -39,8 +43,8 @@ test("シートに関心度・設問・コメント・2つのボタンが並ぶ"
   const html = render();
   assert.match(html, /このニュースへの関心度/);
   assert.match(html, /関心がない/);
-  assert.match(html, /少し気になる/);
-  assert.match(html, /気になる/);
+  assert.match(html, /やや関心あり/);
+  assert.match(html, /関心あり/);
   assert.match(html, /考えに近いものを選んでください。/);
   assert.match(html, /（必須選択）/);
   assert.match(html, /思ったこと・考えたこと/);
@@ -82,5 +86,5 @@ test("すべて答えると保存ボタンが押せるようになる", () => {
 
 test("選んだ関心度が選択状態になる", () => {
   const html = render({ interest: 0.5 });
-  assert.match(html, /class="interest-level selected" aria-pressed="true">少し気になる</);
+  assert.match(html, /class="interest-level selected" aria-pressed="true">やや関心あり</);
 });

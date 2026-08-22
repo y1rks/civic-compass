@@ -2,19 +2,8 @@
 
 import { LockKeyhole, MessageCircle, MessageCircleMore } from "lucide-react";
 import type { Article, ArticleQuestionOption } from "../lib/types";
+import { INTEREST_LEVELS } from "../lib/interest";
 import { QuestionBlock, isAnswerComplete, type Answers } from "./question-block";
-
-/**
- * 関心度。寄与 w = intensity × confidence × interest の interest にあたり、
- * 「その人がどれだけ重視しているか」＝ share に効きます。
- *
- * 0 を選んでも回答は記録しますが、cells には入りません（寄与が 0 になるため）。
- */
-export const INTEREST_LEVELS = [
-  { value: 0, label: "関心がない" },
-  { value: 0.5, label: "少し気になる" },
-  { value: 1, label: "気になる" },
-] as const;
 
 export function OpinionSheet({
   article, interest, onInterest, answers, onAnswer, comment, setComment, saving, onCancel, onSave,

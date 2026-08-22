@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowUpRight, Check, ChevronRight, Compass,
-  Home, LockKeyhole, MessageCircleMore, Sparkles, X,
+  Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
 } from "lucide-react";
 import { getAnswers, getArticles, getMatches, getProfileMatches, saveAnswer } from "../lib/api";
 import type { Article, Match, SavedAnswer } from "../lib/types";
+import { DEFAULT_INTEREST, interestLabel } from "../lib/interest";
 import { OpinionSheet } from "./opinion-sheet";
 import type { Answers } from "./question-block";
 
@@ -19,7 +20,7 @@ export default function HomePage() {
   const [selected, setSelected] = useState<Article | null>(null);
   const [comment, setComment] = useState("");
   const [answers, setAnswers] = useState<Answers>({});
-  const [interest, setInterest] = useState(1);
+  const [interest, setInterest] = useState<number>(DEFAULT_INTEREST);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [saved, setSaved] = useState<Record<string, SavedAnswer>>({});
   const [modalOpen, setModalOpen] = useState(false);
@@ -101,7 +102,7 @@ export default function HomePage() {
     setSelected(article);
     setComment(saved[article.id]?.comment ?? "");
     setAnswers(saved[article.id]?.selections ?? {});
-    setInterest(saved[article.id]?.interest ?? 1);
+    setInterest(saved[article.id]?.interest ?? DEFAULT_INTEREST);
     setSheetOpen(false);
     setScreen("detail");
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -153,6 +154,20 @@ export default function HomePage() {
   );
 }
 
+/**
+ * 一覧に出す関心度のバッジ。シートで選んだのと同じ言葉を出します。
+ * 「関心がない」で保存した記事を「関心あり」と表示しないための分岐です。
+ */
+function InterestBadge({ interest }: { interest: number }) {
+  const interested = interest > 0;
+
+  return (
+    <span className={interested ? "saved-badge" : "saved-badge muted"}>
+      {interested ? <Check size={11} /> : <Minus size={11} />} {interestLabel(interest)}
+    </span>
+  );
+}
+
 function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
   articles: Article[]; saved: Record<string, SavedAnswer>; onOpen: (article: Article) => void;
   loadingMore: boolean; loadMoreRef: React.RefObject<HTMLDivElement | null>;
@@ -178,7 +193,7 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
               <div className="article-image-wrap">
                 <img src={article.image} alt="" className="article-image" />
                 {index === 0 && <span className="top-story">注目</span>}
-                {saved[article.id] && <span className="saved-badge"><Check size={11} /> 関心あり</span>}
+                {saved[article.id] && <InterestBadge interest={saved[article.id].interest} />}
               </div>
               <div className="article-body">
                 <div className="article-meta"><span>{article.category}</span></div>
@@ -274,7 +289,7 @@ function Profile({ matches, savedCount }: { matches: Match[]; savedCount: number
         <h1>あなたの政治コンパス</h1>
         <p>関心を保存するほど、マッチの精度が高まります。</p>
         <div className="profile-stats">
-          <div><strong>{savedCount}</strong><span>関心を示した記事</span></div>
+          <div><strong>{savedCount}</strong><span>回答した記事</span></div>
           <div><strong>{savedCount === 0 ? 0 : Math.min(86, 58 + savedCount * 7)}<small>%</small></strong><span>分析の深さ</span></div>
         </div>
       </header>
