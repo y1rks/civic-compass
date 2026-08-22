@@ -329,11 +329,7 @@ button { color:inherit; }
 .trend-examples li { position:relative; padding-left:11px; color:#5f706d; font-size:10px; line-height:1.55; }
 .trend-examples li::before { content:""; position:absolute; left:3px; top:.58em; width:3px; height:3px; border-radius:50%; background:#b3c0bd; }
 
-.trend-score-help { margin:8px 3px 0; color:#84918f; font-size:8px; line-height:1.65; }
 .trends-message { padding:24px 18px; border:1px dashed rgba(24,55,51,.2); border-radius:13px; background:rgba(255,255,255,.55); color:#74827f; text-align:center; font-size:10px; line-height:1.7; }
-.profile-privacy { margin-top:20px; padding:15px; display:flex; gap:11px; background:var(--mint); border-radius:13px; }
-.profile-privacy strong { font-size:11px; }
-.profile-privacy p { margin:5px 0 0; font-size:9px; line-height:1.65; color:#5c716d; }
 .empty-state { text-align:center; padding:45px 25px; background:#fff; border-radius:15px; border:1px solid var(--line); }
 .empty-state svg { color:var(--coral); }
 .empty-state h2 { font-family:Georgia,"Yu Mincho",serif; font-size:17px; }

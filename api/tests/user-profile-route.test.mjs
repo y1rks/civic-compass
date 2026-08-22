@@ -5,7 +5,7 @@ const baseCell = {
   frame: "care_harm",
   target: "子ども・将来世代",
   role: "beneficiary",
-  score: -1,
+  score: 1,
   share: 0.5,
   n: 1,
 };
@@ -25,7 +25,7 @@ async function request(raw) {
 
 test("scoreが高い順に上位3セルを返す", async () => {
   const cells = [
-    { ...baseCell, frame: "fairness", target: "地方", score: -1 },
+    { ...baseCell, frame: "fairness", target: "地方", score: 0.4 },
     { ...baseCell, frame: "sovereignty", target: "国際社会", role: "threat", score: 1 },
     { ...baseCell, frame: "efficiency_utility", target: "国民全体", score: 0.2 },
     { ...baseCell, score: 0.6 },
@@ -34,7 +34,7 @@ test("scoreが高い順に上位3セルを返す", async () => {
   const data = await response.json();
 
   assert.equal(response.status, 200);
-  assert.deepEqual(data.cells.map((cell) => cell.score), [1, 0.6, 0.2]);
+  assert.deepEqual(data.cells.map((cell) => cell.score), [1, 0.6, 0.4]);
 });
 
 test("scoreが同点なら share（言及度）で割る", async () => {
@@ -47,6 +47,25 @@ test("scoreが同点なら share（言及度）で割る", async () => {
   ];
   const data = await (await request(profile(cells))).json();
   assert.deepEqual(data.cells.map((cell) => cell.share), [0.8, 0.5, 0.2]);
+});
+
+test("★score が 0 以下のセルは返さない（重視している考え方として並べると意味が逆になる）", async () => {
+  const cells = [
+    { ...baseCell, frame: "fairness", target: "地方", score: -1 },
+    { ...baseCell, frame: "sovereignty", target: "国際社会", score: 0 },
+    { ...baseCell, frame: "efficiency_utility", target: "国民全体", score: 0.3 },
+  ];
+  const data = await (await request(profile(cells))).json();
+
+  assert.deepEqual(data.cells.map((cell) => cell.frame), ["efficiency_utility"]);
+});
+
+test("該当が1件も無ければ空配列を返す（画面側が回答を促す）", async () => {
+  const cells = [
+    { ...baseCell, frame: "fairness", target: "地方", score: -1 },
+    { ...baseCell, frame: "sovereignty", target: "国際社会", score: 0 },
+  ];
+  assert.deepEqual(await (await request(profile(cells))).json(), { cells: [] });
 });
 
 test("3件未満なら存在するセルだけを返す", async () => {

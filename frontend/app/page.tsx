@@ -595,7 +595,7 @@ function Profile({
         <h1>あなたの政治コンパス</h1>
         <p>関心を保存するほど、マッチの精度が高まります。</p>
         <div className="profile-stats">
-          <div><strong>{savedCount}</strong><span>回答した記事</span></div>
+          <div><strong>{savedCount}</strong><span>意見を記録した記事</span></div>
           <div><strong>{depth}<small>%</small></strong><span>分析の深さ</span></div>
         </div>
       </header>
@@ -603,7 +603,6 @@ function Profile({
         <div className="section-heading"><div>考えが近い政治家</div><span>総合マッチ</span></div>
         <ProfileMatches savedCount={savedCount} result={matchResult} status={matchesStatus} />
         <ProfileTrends cells={cells} status={cellsStatus} />
-        <div className="profile-privacy"><LockKeyhole size={20} /><div><strong>あなたの関心は非公開です</strong><p>保存した記事やコメントが、他のユーザーや政治家に公開されることはありません。</p></div></div>
         <p className="demo-disclaimer dark-text">{matchResult?.disclaimer ?? "これは参考情報であり、特定の候補者や政党への投票を推奨するものではありません。"}</p>
       </section>
     </div>
