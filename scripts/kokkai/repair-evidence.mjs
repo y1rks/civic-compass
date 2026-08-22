@@ -7,6 +7,9 @@
 // align.mjs の表記ゆれ吸収が位置は正しく特定するので、**位置のほうを信じて
 // 原文から切り直す**。align.mjs 側は修正済みなので、これは既存データ用。
 //
+// 逆に LLM が原文にない改行を足してくることもある。この場合は evidence_text のほうが
+// 長くなり span の終端が手前にずれるので、空白を無視した照合で終端を引き直す。
+//
 // ⚠️ 抽出バッチの実行中は使わないこと。
 // このスクリプトはファイル全体を読み込んで書き戻すため、その間に extract-batch.mjs が
 // 追記した分が失われる。抽出が終わってから1回だけ実行する。
@@ -47,6 +50,27 @@ if (!args.dryRun) {
 
 const rows = (await readFile(file, "utf8")).split("\n").filter(Boolean).map((l) => JSON.parse(l));
 
+const stripWs = (t) => t.replace(/\s+/g, "");
+
+/**
+ * 開始位置 s から、空白を無視して text と同じ内容になる終端を探す。
+ * LLM が原文にない改行を足した場合、evidence_text のほうが長くなり
+ * span の終端が改行の数だけ手前にずれる。それを引き直すためのもの。
+ * 見つからなければ null（位置そのものが違うので触らない）。
+ */
+function findEnd(full, s, text) {
+  const want = stripWs(text);
+  if (!want) return null;
+  let seen = 0;
+  for (let i = s; i < full.length; i++) {
+    if (!/\s/.test(full[i])) seen++;
+    if (seen < want.length) continue;
+    const end = i + 1;
+    return stripWs(full.slice(s, end)) === want ? end : null;
+  }
+  return null;
+}
+
 let fixed = 0;
 let unfixable = 0;
 const samples = [];
@@ -60,13 +84,24 @@ for (const u of rows) {
     const actual = full.slice(s, e);
     if (actual === f.evidence_text) continue;
 
-    // 長さが大きく違うなら位置がおかしい。触らずに数えるだけにする
-    if (Math.abs(actual.length - f.evidence_text.length) > 5) {
+    // 長さが近ければ、原文の改行が落ちただけ。位置を信じて切り直す
+    if (Math.abs(actual.length - f.evidence_text.length) <= 5) {
+      if (samples.length < 3) samples.push([f.evidence_text, actual]);
+      f.evidence_text = actual;
+      fixed++;
+      continue;
+    }
+
+    // 長さが大きく違う場合。空白を無視した照合で終端を引き直せるなら直す
+    const end = findEnd(full, s, f.evidence_text);
+    if (end === null) {
       unfixable++;
       continue;
     }
-    if (samples.length < 3) samples.push([f.evidence_text, actual]);
-    f.evidence_text = actual;
+    const recut = full.slice(s, end);
+    if (samples.length < 3) samples.push([f.evidence_text, recut]);
+    f.evidence_text = recut;
+    f.evidence_span = [s, end];
     fixed++;
   }
 }
