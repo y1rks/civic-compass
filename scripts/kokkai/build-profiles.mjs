@@ -14,6 +14,14 @@
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  DISTINCTIVENESS_PRIOR,
+  SHARE_PRIOR,
+  distinctiveness as calcDistinctiveness,
+  overrideRateOf,
+  overrideWeight,
+  smoothedShare,
+} from "../../shared/src/scoring.ts";
 import { FRAMES, FRAME_JA_PLAIN as FRAME_JA } from "./llm.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -30,28 +38,11 @@ const MAX_EVIDENCE = 3;
 // ただし override は「その価値を優先順位で下に置いた」という明示的な意思表示で、
 // **めったに override しない人がそれをやったときほど情報量が大きい**。
 // そこで議員ごとの override 率の逆数（の対数）を重みにする。distinctiveness と同じ稀少性の考え方。
-const OVERRIDE_WEIGHT_CAP = 6.0;
-const OVERRIDE_RATE_FLOOR = 0.005;
+// 計算式は shared/src/scoring.ts が唯一の正。
+// ユーザー側（api）も同じものを読むので、ここでコピーを作らないこと。
+// 片側だけ補正を変えると score / share のスケールが合わなくなる。
 
-// share の平滑化。
-//
-// share は「そのセルの寄与 ÷ 全セルの寄与」なので、**分母がセルの総数に依存する**。
-// 発言データが少ないと観測されるセルも少なく、1セルあたりの share が大きく出てしまう。
-// 実測では、同じ議員でも 30セグメント時点で share 0.248 だったセルが、
-// 557セグメントでは 0.050 まで薄まった（言及の傾向は変わっていないのに5倍の差）。
-//
-// このままマッチ計算の sqrt(u.share × p.share) に渡すと、データの少ない議員が
-// 不当に高いスコアを取る。そこで擬似的な寄与を足して、観測が薄いうちは
-// 均等分布（1/セル数）側に引き戻す。distinctiveness の PRIOR と同じ考え方。
-const SHARE_PRIOR = 4.0; // 擬似寄与。実測の「1セルあたり平均寄与」3〜8 の下限側に合わせた
-
-/** その話者が override をどれだけ使うかから、override 1件あたりの重みを決める */
-export function overrideWeight(overrideRate) {
-  const p = Math.max(overrideRate, OVERRIDE_RATE_FLOOR);
-  return Math.min(1 + Math.log(1 / p), OVERRIDE_WEIGHT_CAP);
-}
-
-/** 発言群から override 率を出す。ユーザープロファイルでも同じ関数を使うこと */
+/** 発言群から override 率を出す。ユーザー側は answer_selections から同じ形で数える。 */
 export function calcOverrideRate(utterances) {
   let uphold = 0;
   let override = 0;
@@ -61,9 +52,10 @@ export function calcOverrideRate(utterances) {
       else if (f.stance === "override") override++;
     }
   }
-  const total = uphold + override;
-  return total > 0 ? override / total : 0;
+  return overrideRateOf({ uphold, override });
 }
+
+export { overrideWeight };
 
 function parseArgs(argv) {
   const args = { in: "data/utterances.jsonl", minN: 3, quiet: false };
@@ -173,7 +165,6 @@ function buildPolitician(master, utterances, minN) {
   // share は件数ではなく寄与の合計で出す。答弁が件数で押し切るのを防ぐため。
   const totalDen = kept.reduce((a, c) => a + c.den, 0);
   // 平滑化後の分母。観測が薄いほど、各セルが 1/セル数 に近づく
-  const smoothTotal = totalDen + SHARE_PRIOR * kept.length;
 
   // evidence は別ファイルに分ける。
   // C（マッチ度API）は全議員の cells を突合するので、そこに原文が混ざっていると
@@ -185,7 +176,7 @@ function buildPolitician(master, utterances, minN) {
       target: c.target,
       role: c.role,
       score: c.denScore > 0 ? round(c.num / c.denScore) : 0,
-      share: smoothTotal > 0 ? round((c.den + SHARE_PRIOR) / smoothTotal) : 0,
+      share: round(smoothedShare(c.den, totalDen, kept.length)),
       n: c.n,
     }))
     .sort((a, b) => b.share - a.share);
@@ -214,7 +205,7 @@ function buildPolitician(master, utterances, minN) {
     const num = group.reduce((a, c) => a + c.num, 0);
     frames[f] = {
       score: denScore > 0 ? round(num / denScore) : 0,
-      share: smoothTotal > 0 ? round((den + SHARE_PRIOR * group.length) / smoothTotal) : 0,
+      share: round(smoothedShare(den + SHARE_PRIOR * (group.length - 1), totalDen, kept.length)),
       n: group.reduce((a, c) => a + c.n, 0),
     };
   }
@@ -277,13 +268,12 @@ function attachDistinctiveness(profiles) {
   // 平均に下駄（PRIOR）を履かせて、share が小さいセルの倍率が伸びないようにする。
   // ベイズ平滑化と同じ考え方で、証拠が薄いセルを平均側に引き戻す。
   const n = profiles.length;
-  const PRIOR = 0.01; // share 1% 相当の下駄
 
   for (const pr of profiles) {
     for (const c of pr.cells) {
       const all = shares.get(cellKey(c)) ?? [];
       const avg = all.reduce((a, v) => a + v, 0) / n;
-      c.distinctiveness = round((c.share + PRIOR) / (avg + PRIOR));
+      c.distinctiveness = round(calcDistinctiveness(c.share, avg));
     }
     // frames 側にも同じものを付ける（表示や粗いマッチで使う）
     const frameShares = new Map();
@@ -295,7 +285,7 @@ function attachDistinctiveness(profiles) {
     }
     for (const [f, v] of Object.entries(pr.frames)) {
       const avg = (frameShares.get(f) ?? 0) / n;
-      v.distinctiveness = round((v.share + PRIOR) / (avg + PRIOR));
+      v.distinctiveness = round(calcDistinctiveness(v.share, avg));
     }
     // 語っていないフレームがどれだけあるかは、マッチ計算で使う（下記§4）
     pr.silent_frames = Object.entries(pr.frames).filter(([, v]) => v.n === 0).map(([f]) => f);
