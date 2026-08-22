@@ -41,6 +41,12 @@ export function withRank<T extends { match_score: number }>(list: T[]): { item: 
   });
 }
 
+/**
+ * マッチ度の表示。API は小数第1位まで返すので、桁を揃えて出します
+ * （50 と 50.4 が「50」「50.4」と混ざると、丸めた値のように見えます）。
+ */
+const score = (value: number): string => value.toFixed(1);
+
 /** 畳んでいるときに見せる件数。API が返すのは最大7件です。 */
 const COLLAPSED_COUNT = 3;
 
@@ -85,7 +91,7 @@ function PoliticianCard({ match, rank, index }: { match: PoliticianProfileMatch;
         <p>{match.party}・{match.house}</p>
         <div className="mini-track"><span style={{ width: `${match.match_score}%` }} /></div>
       </div>
-      <div className="profile-score"><strong>{match.match_score}<small>%</small></strong><ArrowUpRight size={16} /></div>
+      <div className="profile-score"><strong>{score(match.match_score)}<small>%</small></strong><ArrowUpRight size={16} /></div>
     </a>
   );
 }
@@ -105,7 +111,7 @@ function PartyCard({ match, rank }: { match: PartyProfileMatch; rank: number }) 
         <p>{seats.length > 0 ? `${seats}議席` : "国会に議席なし"}</p>
         <div className="mini-track"><span style={{ width: `${match.match_score}%` }} /></div>
       </div>
-      <div className="profile-score"><strong>{match.match_score}<small>%</small></strong><ArrowUpRight size={16} /></div>
+      <div className="profile-score"><strong>{score(match.match_score)}<small>%</small></strong><ArrowUpRight size={16} /></div>
     </a>
   );
 }

@@ -262,7 +262,9 @@ export function calculateProfileMatch(
 
   return {
     reliable: true,
-    match_score: Math.max(0, Math.min(100, Math.round((numerator / denominator) * 100))),
+    // 小数第1位まで返します。整数に丸めると、僅差の議員・政党が同率に潰れて
+    // 順位（同率は同順位）が実態より多く並びます。
+    match_score: round(Math.max(0, Math.min(100, (numerator / denominator) * 100)), 1),
     matched_cells: matchedCells,
     reasons,
     differences,

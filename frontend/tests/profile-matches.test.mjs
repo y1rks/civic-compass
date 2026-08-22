@@ -46,7 +46,7 @@ test("総合マッチAPIの議員名・所属・マッチ度を表示する", ()
   const html = render();
   assert.match(html, /高市早苗/);
   assert.match(html, /自由民主党・衆議院/);
-  assert.match(html, /78<small>%/);
+  assert.match(html, /78\.0<small>%/);
   assert.match(html, /被害や苦痛への配慮/);
   assert.match(html, /href="https:\/\/example.com\/politician"/);
 });

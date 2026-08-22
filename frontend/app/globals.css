@@ -296,13 +296,14 @@ button { color:inherit; }
 .match-more .flipped { transform:rotate(180deg); }
 .profile-match-list { display:grid; gap:9px; }
 .profile-match-summary { margin:0 0 12px; color:#657471; font-size:11px; line-height:1.7; }
-.profile-match-card { text-decoration:none; color:inherit; padding:14px 12px; border-radius:14px; border:1px solid var(--line); background:#fff; display:grid; grid-template-columns:18px 48px 1fr 48px; align-items:center; gap:9px; box-shadow:0 3px 15px rgba(26,49,45,.04); }
+/* 最終列は「50.4%」まで入る幅。マッチ度は小数第1位まで出します。 */
+.profile-match-card { text-decoration:none; color:inherit; padding:14px 12px; border-radius:14px; border:1px solid var(--line); background:#fff; display:grid; grid-template-columns:18px 48px 1fr 62px; align-items:center; gap:9px; box-shadow:0 3px 15px rgba(26,49,45,.04); }
 .profile-rank { color:#a3adaa; font-family:Georgia,serif; font-size:13px; }
 .profile-match-info { min-width:0; }
 .profile-match-info h2 { font-size:14px; }
 .mini-track { margin:8px 0 0; }
 .profile-score { text-align:right; color:var(--coral); display:grid; justify-items:end; gap:5px; }
-.profile-score strong { font-family:Georgia,serif; font-size:20px; }
+.profile-score strong { font-family:Georgia,serif; font-size:19px; letter-spacing:-.02em; white-space:nowrap; }
 .profile-score small { font-size:9px; }
 .profile-trends { margin-top:26px; }
 .profile-trends-heading { margin-bottom:7px; }
