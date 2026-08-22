@@ -6,7 +6,7 @@ import {
   ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Quote, Sparkles, X,
 } from "lucide-react";
 import { getAnswers, getArticles, getPerspectives, getProfileMatches, saveAnswer } from "../lib/api";
-import type { Article, Match, Perspective, PerspectivePolitician, PerspectiveResult, SavedAnswer } from "../lib/types";
+import type { Article, Match, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement, SavedAnswer } from "../lib/types";
 import { DEFAULT_INTEREST, interestLabel } from "../lib/interest";
 import { OpinionSheet } from "./opinion-sheet";
 import type { Answers } from "./question-block";
@@ -416,6 +416,8 @@ function PerspectiveBlock({ perspective, index }: { perspective: Perspective; in
 /** 同じ議員が role 違いで2枚出ることがあります（守る立場でも問題視する立場でも語った場合）。 */
 function SpeakerCard({ politician, target }: { politician: PerspectivePolitician; target: string }) {
   const alignment = ALIGNMENT_LABEL[politician.alignment];
+  // 先頭が代表の1件。どれが来るかは API 側で毎回変わります。
+  const [featured, ...rest] = politician.statements;
 
   return (
     <article className="speaker-card">
@@ -438,37 +440,47 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
       </div>
       <p className="speaker-mention">{politician.mentionText}（該当する発言 {politician.n}件）</p>
 
-      {/* 答弁そのものは長いので畳んでおきます。まず「誰が・どう扱ったか」を一覧で
-          見比べられるようにし、原文は読みたい人だけが開く形にします。
-          JS の状態を持たない <details> なので、描画直後から開閉できます。 */}
-      <details className="statement-fold">
-        <summary>
-          <Quote size={11} />
-          実際の答弁
-          <span className="fold-count">{politician.statements.length}件</span>
-          <ChevronDown size={14} className="fold-chevron" />
-        </summary>
-        <div className="statement-list">
-          {politician.statements.map((statement, index) => (
-            <div className="statement" key={`${statement.url ?? "no-url"}-${index}`}>
-              <div className="statement-meta">
-                <span>{statement.quotable ? "国会会議録" : "公式HP"}</span>
-                {statement.date && <time>{statement.date}</time>}
-              </div>
-              {/* 原文を出せるのは会議録（公文書）だけ。公式サイト由来は要約とリンクに留めます。 */}
-              {statement.quotable && statement.excerpt
-                ? <p className="statement-quote">{statement.excerpt}</p>
-                : <p className="statement-summary">{statement.summary}</p>}
-              {statement.url && (
-                <a className="statement-link" href={statement.url} target="_blank" rel="noreferrer">
-                  出典を読む <ExternalLink size={11} />
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
-      </details>
+      {/* 代表の1件だけを畳まずに出します。まず実際の言葉に触れてもらい、
+          残りは読みたい人が開く形にします。どれが代表になるかは API 側で毎回変わります。 */}
+      {featured && <StatementCard statement={featured} featured />}
+
+      {/* JS の状態を持たない <details> なので、描画直後から開閉できます。 */}
+      {rest.length > 0 && (
+        <details className="statement-fold">
+          <summary>
+            <Quote size={11} />
+            その他の答弁
+            <span className="fold-count">{rest.length}件</span>
+            <ChevronDown size={14} className="fold-chevron" />
+          </summary>
+          <div className="statement-list">
+            {rest.map((statement, index) => (
+              <StatementCard key={`${statement.url ?? "no-url"}-${index}`} statement={statement} />
+            ))}
+          </div>
+        </details>
+      )}
     </article>
+  );
+}
+
+/** 答弁1件。原文を出せるのは会議録（公文書）だけで、公式サイト由来は要約とリンクに留めます。 */
+function StatementCard({ statement, featured = false }: { statement: PerspectiveStatement; featured?: boolean }) {
+  return (
+    <div className={featured ? "statement featured" : "statement"}>
+      <div className="statement-meta">
+        <span>{statement.quotable ? "国会会議録" : "公式HP"}</span>
+        {statement.date && <time>{statement.date}</time>}
+      </div>
+      {statement.quotable && statement.excerpt
+        ? <p className="statement-quote">{statement.excerpt}</p>
+        : <p className="statement-summary">{statement.summary}</p>}
+      {statement.url && (
+        <a className="statement-link" href={statement.url} target="_blank" rel="noreferrer">
+          出典を読む <ExternalLink size={11} />
+        </a>
+      )}
+    </div>
   );
 }
 

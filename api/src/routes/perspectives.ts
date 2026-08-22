@@ -294,6 +294,19 @@ function pickPoliticians<T extends { speaker_id: string; alignment: Alignment; s
 }
 
 /**
+ * 代表の1件を先頭に寄せます。画面はここだけを畳まずに出し、残りは
+ * 「その他の答弁」に隠します。**どれが代表になるかは毎回変わります。**
+ *
+ * 並べ替えではなく先頭への移動にしているのは、残りの順序
+ * （`intensity × confidence × 新しさ` の降順）を保つためです。
+ */
+function featureOne<T>(items: T[]): T[] {
+  if (items.length <= 1) return items;
+  const index = Math.floor(Math.random() * items.length);
+  return [items[index], ...items.slice(0, index), ...items.slice(index + 1)];
+}
+
+/**
  * evidence 1件を表示用に整えます。
  *
  * ★著作権の出し分け（docs/design-constraints.md「著作権」）。
@@ -417,8 +430,8 @@ perspectives.get("/:articleId", async (c) => {
         stanceText: stanceText(row.frame, entry.score),
         mentionText: mentionText(entry.share, entry.distinctiveness),
         alignment: entry.alignment,
-        // evidence は1セルにつき最大3件。絞らずすべて出します。
-        statements: (evidenceById.get(entry.speaker_id)?.cells[cellKey(entry)] ?? []).map(toStatement),
+        // evidence は1セルにつき最大3件。絞らずすべて返し、先頭が代表の1件になります。
+        statements: featureOne((evidenceById.get(entry.speaker_id)?.cells[cellKey(entry)] ?? []).map(toStatement)),
       }))
       // 発言を出せない議員は載せません。このポップアップの中身は「どう答えたか」なので、
       // 引用が無いカードは目的を果たしません。

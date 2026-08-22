@@ -199,7 +199,7 @@ button { color:inherit; }
 .speaker-mention { margin:9px 0 0; font-size:10px; line-height:1.7; color:#7b8987; }
 /* 答弁の原文は畳んでおき、開いた人にだけ出します。まず「誰が・どう扱ったか」を
    見比べられるようにするためで、開閉は <details> がやるので JS は要りません。 */
-.statement-fold { margin-top:12px; }
+.statement-fold { margin-top:8px; }
 .statement-fold>summary { list-style:none; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px; padding:9px 11px; border-radius:10px; background:#f1efe7; color:var(--green); font-size:10px; font-weight:800; transition:background .15s; }
 .statement-fold>summary::-webkit-details-marker { display:none; }
 .statement-fold>summary:hover { background:#e9e6da; }
@@ -208,6 +208,8 @@ button { color:inherit; }
 .fold-chevron { margin-left:auto; transition:transform .2s; }
 .statement-fold[open] .fold-chevron { transform:rotate(180deg); }
 .statement { margin-top:6px; padding:11px 12px; border-radius:11px; background:#f6f4ed; }
+/* 畳まずに出す代表の1件。上の説明文から少し離します。 */
+.statement.featured { margin-top:12px; }
 .statement-meta { display:flex; align-items:center; gap:6px; color:var(--coral); font-size:8px; font-weight:800; letter-spacing:.07em; }
 .statement-meta time { margin-left:auto; color:#8a9694; font-weight:700; letter-spacing:0; }
 /* 開いたら全文を出します。要約ではなく実際の言葉を読むための場所なので畳みません。 */

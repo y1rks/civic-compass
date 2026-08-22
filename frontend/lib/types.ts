@@ -115,6 +115,12 @@ export type PerspectivePolitician = {
    *   `positionsDivided: false` の論点では全員が同じラベルになります。
    */
   alignment: "same" | "different" | "unclear";
+  /**
+   * その観点での発言。最大3件。
+   *
+   * **先頭が代表の1件**で、画面ではこれだけを畳まずに出します（毎回変わります）。
+   * 残りは「その他の答弁」に畳みます。
+   */
   statements: PerspectiveStatement[];
 };
 

@@ -325,24 +325,46 @@ test("「どちらとも言えない」と答えた論点では立場を判定�
   assert.equal(data.perspectives[0].politicians.length, 2);
 });
 
+/** P00001 だけを候補にして、その evidence（3件・うち1件は公式サイト由来）を見る */
+const onlyP00001 = {
+  ...cellIndex,
+  "cellidx:care_harm|自然環境|beneficiary": [entry("P00001", "似A", 0.91, 0.032)],
+  "cellidx:care_harm|自然環境|threat": [],
+};
+
 test("国会会議録の発言は原文を返し、公式サイト由来は要約に留める", async () => {
-  // P00001 だけを候補にして、その evidence（3件・うち1件は公式サイト由来）を見る
-  const index = { ...cellIndex, "cellidx:care_harm|自然環境|beneficiary": [entry("P00001", "似A", 0.91, 0.032)], "cellidx:care_harm|自然環境|threat": [] };
-  const { response } = await request("/api/perspectives/energy-2035", createDbMock(), createKvMock(index));
+  const { response } = await request("/api/perspectives/energy-2035", createDbMock(), createKvMock(onlyP00001));
   const data = await response.json();
   const statements = data.perspectives[0].politicians[0].statements;
 
   // evidence にある分はすべて返す（1セルにつき最大3件）
   assert.equal(statements.length, 3);
 
-  assert.equal(statements[0].quotable, true);
-  assert.equal(statements[0].excerpt, "景観と生態系を守ることが第一であります。");
-  assert.equal(statements[0].url, "https://kokkai.ndl.go.jp/txt/1/1");
+  const kokkaiOne = statements.find((s) => s.url === "https://kokkai.ndl.go.jp/txt/1/1");
+  assert.equal(kokkaiOne.quotable, true);
+  assert.equal(kokkaiOne.excerpt, "景観と生態系を守ることが第一であります。");
 
   // quote が無い＝著作物。原文は出さない。
-  assert.equal(statements[1].quotable, false);
-  assert.equal(statements[1].excerpt, null);
-  assert.equal(statements[1].summary, "自然環境への配慮を訴えた");
+  const webOne = statements.find((s) => s.url === "https://example.com/post/1");
+  assert.equal(webOne.quotable, false);
+  assert.equal(webOne.excerpt, null);
+  assert.equal(webOne.summary, "自然環境への配慮を訴えた");
+});
+
+test("代表の1件が先頭に来て、毎回変わる", async () => {
+  // 画面は先頭だけを畳まずに出し、残りは「その他の答弁」に隠す
+  const seen = new Set();
+  for (let i = 0; i < 25; i++) {
+    const { response } = await request("/api/perspectives/energy-2035", createDbMock(), createKvMock(onlyP00001));
+    const data = await response.json();
+    const statements = data.perspectives[0].politicians[0].statements;
+
+    assert.equal(statements.length, 3, "代表を選んでも件数は減らさない");
+    seen.add(statements[0].url);
+  }
+
+  assert.equal(seen.size > 1, true, "毎回同じ発言が代表になっている");
+  assert.equal(seen.size <= 3, true);
 });
 
 test("evidence は選んだ議員の分だけ読む（候補を全員読まない）", async () => {
