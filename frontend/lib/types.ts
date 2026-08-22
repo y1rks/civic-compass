@@ -100,7 +100,10 @@ export type PerspectivePolitician = {
   /** 全議員平均の何倍語っているか。 */
   distinctiveness: number;
   n: number;
-  /** 「〜を根拠として持ち出しています」。API 側のテンプレートで作った文。 */
+  /**
+   * どの観点から語ったか。「被害や苦痛への配慮の観点」。
+   * その価値を退けている議員だけ「（他を優先）」が付きます。
+   */
   stanceText: string;
   /** 「この観点の発言が全体の3.2%を占めます」。同上。 */
   mentionText: string;

@@ -290,9 +290,10 @@ test("マッチ度は返さず、その価値をどう扱ったかを文で返�
   const uphold = politicians.find((p) => p.score > 0.2);
   const override = politicians.find((p) => p.score < -0.2);
 
-  assert.equal(uphold.stanceText, "被害や苦痛への配慮を根拠として持ち出しています");
+  assert.equal(uphold.stanceText, "被害や苦痛への配慮の観点");
   // score が負＝その価値を優先順位で下に置いた。「反対」とは書かない。
-  if (override) assert.equal(override.stanceText, "被害や苦痛への配慮よりも他の価値を優先しています");
+  // 一律「〜の観点」にすると score が画面から消えるので、ここだけ補う。
+  if (override) assert.equal(override.stanceText, "被害や苦痛への配慮の観点（他を優先）");
   assert.match(uphold.mentionText, /%を占めます|倍です|少なめです/);
 
   assert.equal("match_score" in politicians[0], false);

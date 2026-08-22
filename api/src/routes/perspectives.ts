@@ -121,17 +121,20 @@ const topicKey = (cell: { frame: string; target: string }) => `${cell.frame}|${c
 const roleLabel = (role: CellRole) => (role === "beneficiary" ? "守る立場" : "問題視する立場");
 
 /**
- * その議員がこのセルの価値をどう扱ったか。
+ * どの観点（frame）から語ったか。役割ラベルの隣に並べるチップなので短くします。
  *
  * `score` は「支持したか退けたか」ではなく **「根拠として持ち出したか（uphold）／
  * 優先順位で下に置いたか（override）」** です。賛否と読める言い回しにしないこと
  * （docs/design-constraints.md「ユーザー側の入力（記事の設問）」）。
+ *
+ * 大半は uphold なので素の「〜の観点」にし、**そうでないときだけ**括弧で補います。
+ * ここを一律「〜の観点」にすると score（3指標の1つ）が画面から消えてしまいます。
  */
 function stanceText(frame: Frame, score: number): string {
   const label = FRAME_JA_PLAIN[frame];
-  if (score > STANCE_THRESHOLD) return `${label}を根拠として持ち出しています`;
-  if (score < -STANCE_THRESHOLD) return `${label}よりも他の価値を優先しています`;
-  return `${label}を持ち出す発言と、他の価値を優先する発言の両方があります`;
+  if (score > STANCE_THRESHOLD) return `${label}の観点`;
+  if (score < -STANCE_THRESHOLD) return `${label}の観点（他を優先）`;
+  return `${label}の観点（一定でない）`;
 }
 
 /**

@@ -153,7 +153,8 @@ button { color:inherit; }
 .modal-footer .demo-disclaimer { margin:0 0 9px; }
 .match-intro { text-align:center; }
 .sparkle { width:50px; height:50px; border-radius:50%; display:grid; place-items:center; margin:0 auto 13px; color:#ffc3ad; background:rgba(255,255,255,.09); }
-.match-intro h1 { font-family:Georgia,"Yu Mincho",serif; font-size:26px; line-height:1.45; letter-spacing:-.04em; margin:8px 0; }
+/* 1行に収める見出し。狭い画面では字を詰めます（折り返すと下の論点まで押し下がるため）。 */
+.match-intro h1 { font-family:Georgia,"Yu Mincho",serif; font-size:clamp(19px,6.3vw,25px); line-height:1.45; letter-spacing:-.04em; margin:8px 0; }
 .match-intro>p:last-child { margin:0; font-size:10px; color:rgba(255,255,255,.58); }
 .politician-avatar { width:43px; height:43px; border-radius:50%; color:white; display:grid; place-items:center; font-family:"Yu Mincho",Georgia,serif; font-size:17px; font-weight:700; box-shadow:inset 0 0 0 3px rgba(255,255,255,.25); }
 .politician-avatar.large { width:48px; height:48px; }
@@ -188,12 +189,14 @@ button { color:inherit; }
 .alignment-chip { border-radius:99px; padding:5px 9px; font-size:9px; font-weight:800; white-space:nowrap; }
 .alignment-chip.same { background:rgba(82,123,107,.14); color:#3d6f5e; }
 .alignment-chip.different { background:rgba(232,111,76,.14); color:#b8532f; }
-/* 「守る対象として」と「問題の原因として」は正反対の思想なので、必ず出し分けます。
+.speaker-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+/* 「守る立場」と「問題視する立場」は正反対の思想なので、必ず出し分けます。
    色でどちらが良い／悪いとは読ませないよう、地味な差にとどめること。 */
-.speaker-role { display:inline-block; margin:12px 0 0; padding:4px 9px; border-radius:99px; font-size:9px; font-weight:800; background:#eef2ee; color:#4e615e; }
+.speaker-role { padding:4px 9px; border-radius:99px; font-size:9px; font-weight:800; background:#eef2ee; color:#4e615e; }
 .speaker-role.threat { background:#f4ece7; color:#8a6350; }
-.speaker-stance { margin:7px 0 0; font-size:12px; line-height:1.7; font-weight:700; color:var(--green); }
-.speaker-mention { margin:4px 0 0; font-size:10px; line-height:1.7; color:#7b8987; }
+/* どの観点（frame）から語ったか。役割チップと色で競わないよう、線だけで区別します。 */
+.speaker-frame { padding:4px 9px; border-radius:99px; font-size:9px; font-weight:800; border:1px solid rgba(24,55,51,.17); color:#5c6f6c; }
+.speaker-mention { margin:9px 0 0; font-size:10px; line-height:1.7; color:#7b8987; }
 /* 答弁の原文は畳んでおき、開いた人にだけ出します。まず「誰が・どう扱ったか」を
    見比べられるようにするためで、開閉は <details> がやるので JS は要りません。 */
 .statement-fold { margin-top:12px; }

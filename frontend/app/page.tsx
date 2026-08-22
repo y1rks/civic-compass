@@ -342,7 +342,7 @@ function PerspectiveModal({ article, result, failed, onClose }: {
         <div className="match-intro">
           <div className="sparkle"><Sparkles size={25} /></div>
           <p className="eyebrow">YOUR PERSPECTIVE</p>
-          <h1>この観点をめぐる<br />議員の答弁</h1>
+          <h1>この観点をめぐる議員の答弁</h1>
           <p>「{article.category}」の記事で選んだ見方をもとに、国会会議録から抽出</p>
         </div>
 
@@ -432,8 +432,10 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
 
       {/* ★role は消さないこと。「守る立場」と「問題視する立場」は正反対の思想で、
           畳むと外国人・移民を支援対象として語る議員と脅威として語る議員が同じに見えます。 */}
-      <p className={`speaker-role ${politician.role}`}>{target}を{politician.roleLabel}</p>
-      <p className="speaker-stance">{politician.stanceText}</p>
+      <div className="speaker-tags">
+        <span className={`speaker-role ${politician.role}`}>{target}を{politician.roleLabel}</span>
+        <span className="speaker-frame">{politician.stanceText}</span>
+      </div>
       <p className="speaker-mention">{politician.mentionText}（該当する発言 {politician.n}件）</p>
 
       {/* 答弁そのものは長いので畳んでおきます。まず「誰が・どう扱ったか」を一覧で
