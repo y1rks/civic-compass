@@ -19,7 +19,7 @@ D1 と KV に何が入っているか、`share` / `score` / `distinctiveness` �
 |---|---|---|
 | 入力 | **直前に答えた1記事の回答**（D1 `answer_selections`） | 累積のユーザープロファイル（KV `profile:user:*`） |
 | 逆引きの単位 | **frame × target**（`role` では絞らない） | セル（frame × target × role） |
-| 読む KV | `cellidx:*` → 論点ごとに選んだ3人の `profile:evidence:*` | 全議員の `profile:*` → 上位3人の `profile:evidence:*` |
+| 読む KV | `cellidx:*` → 論点ごとに選んだ3人の `profile:evidence:*` | 全議員の `profile:*` のみ（**evidence は読みません**） |
 | 出すもの | 論点ごとに「議員がその観点をどう扱ったか」＋発言原文 | マッチ度（%）＋ reasons / differences |
 | マッチ度 | **出しません** | 出します |
 
@@ -95,8 +95,9 @@ loyalty_community × 家族        5人全員 score +1.000
 ① ユーザープロファイル【3】       ← ✅ 実装済み。KV から読むだけ
   ↓ ② 全議員の profile:{id} と突き合わせ（evidence は読まない。合計150KB程度）
   ↓ ③ match_score + reasons + differences を組み立て
-  ↓ ④ 上位3人だけ profile:evidence:{id} を読んで根拠を添える
 ```
+
+**④ evidence は読みません**（2026-08-23 の決定。理由は後述の「④」）。
 
 **LLM は一切使いません。** 理由文もテンプレートで作ります（後述）。
 
@@ -555,7 +556,17 @@ cell.score < -0.2 ? `${FRAME_JA[cell.frame]}よりも他の価値を優先する
 
 ---
 
-## ④ evidence を添える
+## ④ evidence は読みません（2026-08-23 決定）
+
+**政治コンパス画面は発言の原文を出さないので、C は `profile:evidence:*` を一切読みません。**
+氏名・所属・マッチ度・reasons / differences だけで画面が成立しており、読んでも捨てるだけでした。
+やめたことで、並べる議員を3人から**7人**に増やしても KV の読み込み量は変わりません。
+
+原文が要るのは B（`GET /api/perspectives/:articleId`）です。C に「根拠を見る」UI を
+足すときは、この節を復活させるのではなく**選ばれた議員1人分だけを読む別経路**にしてください
+（1件1MB前後あるので、7人分をまとめて展開すると Worker のメモリに響きます）。
+
+以下は B と、将来 C で原文を出すときのための記述です。
 
 **上位3人だけ** `profile:evidence:{speaker_id}` を読みます。1件1MB前後あるので、
 全議員分を読むと十数MBになります。
@@ -612,15 +623,14 @@ full.slice(s, t)                        // → 根拠にした箇所
       ],
       "differences": [
         { "text": "共同体・伝統の言及度はこの議員のほうが低い", "frame": "loyalty_community" }
-      ],
-      "evidence": [
-        { "date": "2024-03-12", "quote": "……原文……",
-          "url": "https://kokkai.ndl.go.jp/...", "frame": "liberty_autonomy" }
       ]
     }
   ],
   "party_matches": [
-    { "party": "自由民主党", "match_score": 62, "n_politicians": 4 }
+    { "party_id": "PT01", "party": "自由民主党", "short_name": "自民",
+      "website": "https://www.jimin.jp/", "seats": { "shugiin": 316, "sangiin": 101 },
+      "source": "mixed", "match_score": 62, "matched_cells": 5, "n_politicians": 4,
+      "reasons": [], "differences": [] }
   ],
   "disclaimer": "これは参考情報であり、投票の推奨ではありません。"
 }
@@ -633,9 +643,14 @@ full.slice(s, t)                        // → 根拠にした箇所
 
 このときは「もう少し記事に意見を書くと精度が上がります」と表示します。
 
-`party_matches` は `profile:party:{党名}` を読んで同じ計算をします。
-**対象議員が1人の党も含めます**（プロトタイプ方針）。
-大政党ほど平均で中庸に寄る点は承知の上です。
+`party_matches` は `profile:party:{党名}` を読んで同じ計算をします。対象は
+**国会に議席を持つ全政党**で、一覧は `scripts/kokkai/parties.json` が正です。
+返すのは議員と同じく**上位7件**まで（`MAX_MATCHES`）。プロファイルが無い党と
+`reliable: false` の党は、その前に落ちます。
+議員マスタから所属党を数え上げないでください（プロファイルを作った15人がいない党が落ちます）。
+
+政党プロファイルは**公約を主・所属議員の発言を従**にして作ってあります（`source` を参照）。
+`profile:party:{党名}` が KV に無い党は、まだ公約を抽出していないだけなので黙って飛ばします。
 
 ---
 
@@ -743,10 +758,14 @@ if (!user || user.cells.length === 0 || user.n_answers < 5) return { reliable: f
 
 ### `party_matches` は議員のマッチ度の平均ではない
 
-政党プロファイル（`profile:party:{党名}`）は**所属議員の cells を n で加重平均したもの**で、
+政党プロファイル（`profile:party:{党名}`）は**各党の公約と所属議員の cells を混ぜたもの**で、
 そこに対してユーザーと同じマッチ計算をします。
 「所属議員の match_score を平均する」のとは別の値になります。後者にしないでください
 （1人だけ極端に高い党が過大評価されます）。
+
+政党側の `distinctiveness` は**全政党の中での珍しさ**で、議員側（議員15人の中での珍しさ）
+とは母集団が違います。**議員のマッチ度と政党のマッチ度を並べて優劣を語らないこと。**
+画面でもタブを分けています。
 
 ### 議員の並び順を score でソートしない
 
@@ -1022,9 +1041,9 @@ const pShare = pmap.get(k).share / mass;               // ← 再正規化
 | 段階 | 状態 |
 |---|---|
 | ① ユーザープロファイル | ✅ 実装済み。保存のたびに KV `USER_PROFILES` が更新される |
-| ② マッチ計算 | ❌ 未着手。`GET /api/matches/:articleId` はスタブを返している |
-| ③ reasons / differences | ❌ 未着手 |
-| ④ evidence | ❌ 未着手 |
+| ② マッチ計算 | ✅ 実装済み。`GET /api/matches/profile`（議員・政党とも上位7件） |
+| ③ reasons / differences | ✅ 実装済み |
+| ④ evidence | — この画面では出さないため**実装しません**（上記④） |
 
 `api/src/routes/matches.ts` が `api/src/data/politicians.ts` の固定値を返している
 状態なので、そこを置き換える形になります。

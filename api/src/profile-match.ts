@@ -37,6 +37,8 @@ export type PoliticianProfile = {
 
 export type PartyProfile = {
   party: string;
+  /** manifesto（公約のみ）| members（所属議員のみ）| mixed（両方） */
+  source?: "manifesto" | "members" | "mixed";
   n_politicians: number;
   politicians: string[];
   cells: MatchCell[];
@@ -123,9 +125,12 @@ export const isPartyProfile = (value: unknown): value is PartyProfile => {
   if (typeof value !== "object" || value === null) return false;
   const profile = value as Record<string, unknown>;
   return typeof profile.party === "string"
+    && (profile.source === undefined
+      || profile.source === "manifesto" || profile.source === "members" || profile.source === "mixed")
+    // 公約だけで作った政党は所属議員が0人になります（国会発言のない党もマッチ対象にするため）。
     && isFiniteNumber(profile.n_politicians)
     && Number.isInteger(profile.n_politicians)
-    && profile.n_politicians > 0
+    && profile.n_politicians >= 0
     && Array.isArray(profile.politicians)
     && profile.politicians.every((id) => typeof id === "string")
     && Array.isArray(profile.cells)
@@ -196,7 +201,7 @@ export function calculateProfileMatch(
     const politicianCell = politicianMap.get(cellKey(userCell));
     if (!politicianCell) continue;
 
-    // 政党セルには「議員の中での珍しさ」がないため、平均並みの1として扱います。
+    // 突出度を持たないセル（旧形式の政党プロファイルなど）は平均並みの1として扱います。
     const distinctiveness = politicianCell.distinctiveness ?? 1;
     const overlap = Math.sqrt(userCell.share * politicianCell.share)
       * Math.log(1 + Math.max(0, distinctiveness));
