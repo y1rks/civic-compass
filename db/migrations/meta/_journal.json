@@ -8,6 +8,13 @@
       "when": 1787333084060,
       "tag": "0000_cultured_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787341951402,
+      "tag": "0001_motionless_sunspot",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,18 @@
 	"dev": {
 		"port": 8000
 	},
+	// 議員プロファイル・セル逆引きインデックスの置き場。
+	// 【1】utterances は D1、【2】プロファイルは KV という役割分担です（CLAUDE.personalize.md §5）。
+	//   profile:{speaker_id}           議員プロファイル（cells の統計値。マッチ計算で全件読む）
+	//   profile:evidence:{speaker_id}  evidence（表示する議員の分だけ読む）
+	//   profile:party:{党名}            政党プロファイル
+	//   cellidx:{frame|target|role}    セル→議員の逆引き（B のポップアップで使う）
+	"kv_namespaces": [
+		{
+			"binding": "PROFILES",
+			"id": "be85dc91a6184ca1a9fb99a1c6bba867"
+		}
+	],
 	// D1 は API Worker だけにバインドし、フロントからは Service Binding 経由で利用します。
 	"d1_databases": [
 		{

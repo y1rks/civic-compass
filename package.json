@@ -31,9 +31,12 @@
     "db:migrate:remote": "npm run db:migrate:remote -w api"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "concurrently": "10.0.5",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
-    "typescript-eslint": "8.67.0"
+    "node-html-parser": "^9.0.1",
+    "typescript-eslint": "8.67.0",
+    "zod": "^4.4.3"
   }
 }

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm i *)",
+      "Bash(node -e \"import\\('node-html-parser'\\).then\\(m=>console.log\\('ok', typeof m.parse\\)\\)\")"
+    ]
+  }
+}
