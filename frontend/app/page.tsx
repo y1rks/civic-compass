@@ -600,7 +600,7 @@ function Profile({
         </div>
       </header>
       <section className="profile-content">
-        <div className="section-heading"><div>考えが近い政治家</div><span>総合マッチ</span></div>
+        <div className="section-heading"><div>考えが近い政治家・政党</div><span>総合マッチ</span></div>
         <ProfileMatches savedCount={savedCount} result={matchResult} status={matchesStatus} />
         <ProfileTrends cells={cells} status={cellsStatus} />
         <div className="profile-privacy"><LockKeyhole size={20} /><div><strong>あなたの関心は非公開です</strong><p>保存した記事やコメントが、他のユーザーや政治家に公開されることはありません。</p></div></div>

@@ -30,7 +30,6 @@ const result = {
     matched_cells: 3,
     reasons: [],
     differences: [],
-    evidence: [],
   }],
   party_matches: [],
   disclaimer: "これは参考情報です。",
@@ -50,6 +49,30 @@ test("総合マッチAPIの議員名・所属・マッチ度を表示する", ()
   assert.match(html, /78<small>%/);
   assert.match(html, /被害や苦痛への配慮/);
   assert.match(html, /href="https:\/\/example.com\/politician"/);
+});
+
+const partyMatch = {
+  party_id: "PT01",
+  party: "自由民主党",
+  short_name: "自民",
+  website: "https://www.jimin.jp/",
+  seats: { shugiin: 316, sangiin: 101 },
+  source: "mixed",
+  match_score: 62,
+  matched_cells: 2,
+  n_politicians: 3,
+  reasons: [],
+  differences: [],
+};
+
+test("政治家と政党をタブで切り替えられる", () => {
+  const html = render({ result: { ...result, party_matches: [partyMatch] } });
+
+  assert.match(html, /role="tab"[^>]*>政治家</);
+  assert.match(html, /role="tab"[^>]*>政党</);
+  // 初期表示は政治家タブ。政党カードは切り替えるまで描画しません。
+  assert.match(html, /aria-selected="true"[^>]*>政治家</);
+  assert.doesNotMatch(html, /自由民主党・衆議院[\s\S]*自民</);
 });
 
 test("信頼性不足なら追加回答を促す", () => {

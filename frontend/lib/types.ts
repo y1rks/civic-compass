@@ -184,17 +184,6 @@ export type ProfileMatchDifference = {
   role: import("@civic-compass/shared").CellRole;
 };
 
-export type ProfileMatchEvidence = {
-  date: string | null;
-  summary: string;
-  url: string;
-  frame: import("@civic-compass/shared").Frame;
-  target: import("@civic-compass/shared").Target;
-  role: import("@civic-compass/shared").CellRole;
-  quote?: string;
-  highlight?: string;
-};
-
 export type PoliticianProfileMatch = {
   speaker_id: string;
   politician_name: string;
@@ -205,14 +194,32 @@ export type PoliticianProfileMatch = {
   matched_cells: number;
   reasons: ProfileMatchReason[];
   differences: ProfileMatchDifference[];
-  evidence: ProfileMatchEvidence[];
+  // 発言の原文（evidence）はこの画面では出さないので、API も返しません。
+  // 原文が要るのは B（`GET /api/perspectives/:articleId`）の PerspectiveStatement です。
 };
 
 export type PartyProfileMatch = {
+  party_id: string;
   party: string;
+  /** アバターに出す略称。「自民」「いのち」など。 */
+  short_name: string;
+  website: string;
+  seats: { shugiin: number; sangiin: number };
+  /**
+   * プロファイルの出所。
+   *
+   * `manifesto` … 公約だけ（プロファイルを作った議員がいない党）
+   * `members`   … 所属議員の発言だけ
+   * `mixed`     … 公約を主にしつつ所属議員の発言も混ぜたもの
+   *
+   * 何を根拠にした数字かは画面で断ります（docs/design-constraints.md「中立性」）。
+   */
+  source: "manifesto" | "members" | "mixed";
   match_score: number;
   matched_cells: number;
   n_politicians: number;
+  reasons: ProfileMatchReason[];
+  differences: ProfileMatchDifference[];
 };
 
 export type ProfileMatchesResponse = {
