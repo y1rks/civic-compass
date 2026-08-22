@@ -1,5 +1,5 @@
 {
-  "name": "@civic-compass/db",
+  "name": "@civic-compass/shared",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,19 +7,12 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema.ts"
+    "./vocabulary": "./src/vocabulary.ts"
   },
   "scripts": {
-    "generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "drizzle-orm": "0.45.2",
-    "@civic-compass/shared": "*"
-  },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260821.1",
-    "drizzle-kit": "0.31.10",
     "typescript": "5.9.3"
   }
 }

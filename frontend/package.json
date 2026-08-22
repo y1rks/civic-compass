@@ -13,7 +13,7 @@
     "cf:typegen": "WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler types --include-runtime false",
     "cf:typecheck": "WRANGLER_LOG_PATH=.wrangler/wrangler.log wrangler types --include-runtime false --check",
     "typecheck": "npm run cf:typecheck && tsc --noEmit",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs"
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/question-block.test.mjs tests/opinion-sheet.test.mjs tests/interest.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.33.0",

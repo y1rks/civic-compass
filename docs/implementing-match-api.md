@@ -48,6 +48,13 @@ answers を全件取得
     }
   ],
   "frames": { "liberty_autonomy": { "score": 0.90, "share": 0.25, "n": 3 } },
+
+  // ★明示的に「関心がない」と表明したセル。cells には入れないが、マッチには使う。
+  //   「まだ答えていない」セルとは区別する（後述）
+  "declined_cells": [
+    { "frame": "care_harm", "target": "子ども・将来世代", "role": "beneficiary" }
+  ],
+
   "override_rate": 0.066,
   "override_weight": 3.72
 }
@@ -83,6 +90,79 @@ export されているので、そのまま使ってください。
 - **回答が10件未満のうちは、全議員の平均（override率 6.6%、k = 3.72）を使う**
 - 10件を超えたら本人の実測値に切り替える
 
+### ★回答は3つに分ける —— 「関心がない」と「まだ答えていない」は別物
+
+D1 の `answers` / `answer_selections` から作るとき、回答を**3つのバケツ**に分けます。
+
+| バケツ | 条件 | 扱い |
+|---|---|---|
+| **① 積極的に語った** | `interest > 0` かつ `stance <> 'neutral'` | `cells` に入れる |
+| **② 明示的に関心がないと言った** | `interest = 0`（記事ごと）または `stance = 'neutral'`（設問ごと） | `cells` に入れない。`declined_cells` として別に持つ |
+| **③ まだ答えていない** | そもそも回答が無い | 何も持たない |
+
+②と③を混ぜてはいけません。**②のほうが情報量が大きい**からです。「この観点は自分には関係ない」と表明した人と、
+たまたま出会っていない人は違います。マッチ計算では②を③より重く扱います。
+
+```js
+const SILENT_WEIGHT   = 0.3;   // ③ 両者とも持たない（たまたま一致）
+const DECLINED_WEIGHT = 0.5;   // ② ユーザーが明示的に降りたセルを、議員も語っていない
+```
+
+②で「議員は語っているのにユーザーが降りた」場合は**加点しません**。分母 `den` はユーザーの
+`cells`（①）の share 合計なので、②は分母にも分子にも入らず、素通りします。減点にはしないこと
+（「関心がない」は反対意見ではないため）。
+
+#### ★`interest = 0` を cells に入れてはいけない
+
+寄与 `w = intensity × confidence × interest` が 0 になるので無害に見えますが、**`share` は
+ベイズ平滑化されている**ので 0 になりません。
+
+```
+share = (Σw + SHARE_PRIOR) / (全セルのΣw + SHARE_PRIOR × セル数)
+
+【誤】interest = 0 の行も集計に入れた場合
+   share=0.268  w=0.63  care_harm × 自然環境          ← 本当に重視している
+   share=0.232  w=0.00  care_harm × 子ども・将来世代  ← 「関心がない」
+
+【正】interest = 0 を除いてから集計した場合
+   share=0.500  w=0.63  care_harm × 自然環境
+```
+
+**ほぼ同じ share になります。** しかも `den += u.share` で分母に入るので、
+「関心がない」と答えたセルを持っていない議員が減点されます。意図と正反対です。
+
+必ず集計前に落としてください。
+
+```sql
+-- ① cells の元になる行
+SELECT s.frame, s.target, s.role, s.stance,
+       s.intensity * s.confidence * a.interest AS w
+FROM answer_selections s
+JOIN answers a USING (answer_id)
+WHERE a.user_id = ?
+  AND a.interest > 0          -- ★これが無いと上の【誤】になる
+  AND s.stance <> 'neutral';  -- neutral は向きが読めないので cells に入れない
+
+-- ② 明示的に降りたセル
+SELECT DISTINCT s.frame, s.target, s.role
+FROM answer_selections s
+JOIN answers a USING (answer_id)
+WHERE a.user_id = ?
+  AND (a.interest = 0 OR s.stance = 'neutral');
+```
+
+`interest` が `answers` 側にあるので、**記事単位の関心度がその記事の全設問に効きます**。
+記事に「関心がない」と答えれば、その記事の設問が指すセルはすべて②になります。
+
+#### 注意：記事への関心と、価値への関心は別物
+
+「このニュースには関心がない」は「`care_harm × 自然環境` という観点に関心がない」と
+同じではありません。再エネの記事に興味がなくても、環境への配慮そのものは重視しているかも
+しれません。`DECLINED_WEIGHT` を `SILENT_WEIGHT` より少し上に置くだけに留め、
+満額にしないのはこのためです。
+
+---
+
 ### `distinctiveness` はユーザー側では計算しない
 
 「議員の中でどれだけ珍しいか」を測る指標なので、掛けるのは議員側の値だけです。
@@ -94,9 +174,10 @@ export されているので、そのまま使ってください。
 ```js
 const key = (c) => `${c.frame}|${c.target}|${c.role}`;   // ★role を含む3要素
 
-const MIN_N = 3;            // 議員側のセルの下限
-const MIN_MATCHED = 2;      // これ未満なら reliable: false
-const SILENT_WEIGHT = 0.3;  // 「両者とも語らない」の重み
+const MIN_N = 3;              // 議員側のセルの下限
+const MIN_MATCHED = 2;        // これ未満なら reliable: false
+const SILENT_WEIGHT = 0.3;    // ③ 両者とも持たない（たまたま一致）
+const DECLINED_WEIGHT = 0.5;  // ② ユーザーが明示的に降りたセルを、議員も語っていない
 
 function match(user, pol) {
   const pmap = new Map(pol.cells.map((c) => [key(c), c]));

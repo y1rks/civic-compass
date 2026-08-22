@@ -8,20 +8,8 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { FRAMES } from "./llm.mjs";
+import { FRAMES, FRAME_JA as FRAME_JA } from "./llm.mjs";
 
-const FRAME_JA = {
-  care_harm: "ケア・被害",
-  fairness: "公正・互恵",
-  liberty_autonomy: "自由・自己決定",
-  loyalty_community: "共同体・絆",
-  authority_order: "権威・秩序",
-  sanctity_tradition: "伝統・尊厳",
-  efficiency_utility: "効率・実利",
-  procedure_rule_of_law: "手続き・法の支配",
-  sovereignty: "主権・自立",
-  evidence_expertise: "科学・専門知",
-};
 
 const count = (xs) => xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map());
 const pct = (a, b) => (b === 0 ? "—" : `${((a / b) * 100).toFixed(0)}%`);

@@ -1,6 +1,6 @@
 // segment 分割・フレーム抽出の LLM 呼び出し。
 //
-// 設計上の約束（CLAUDE.personalize.md §6）
+// 設計上の約束（docs/design-constraints.md「禁止事項」）
 //   - 分割と抽出は必ず別呼び出しにする（境界判定と抽出が同時に走ると品質が落ちる）
 //   - LLM にスコア（-1〜+1の連続値）を直接出させない。離散ラベルと intensity まで
 //   - 推論でタグを付けさせない。evidence_text を原文と照合し、一致しないタグは破棄する
@@ -43,40 +43,23 @@ if (!process.env.ANTHROPIC_API_KEY) {
 
 export const MODEL = "claude-opus-5";
 
-// --- 語彙定義（CLAUDE.personalize.md §2。変更禁止） ---------------------------
+// --- 語彙定義 -----------------------------------------------------------------
+//
+// 唯一の正は shared/src/vocabulary.ts。Node 22 の型ストリップで .mjs から
+// そのまま読めるので、ここではコピーを持たず再エクスポートするだけにする。
+// （語彙を変えると【1】utterances の再抽出が必要になるため、複製を作らない）
 
-export const FRAMES = [
-  "care_harm",
-  "fairness",
-  "liberty_autonomy",
-  "loyalty_community",
-  "authority_order",
-  "sanctity_tradition",
-  "efficiency_utility",
-  "procedure_rule_of_law",
-  "sovereignty",
-  "evidence_expertise",
-];
+export {
+  FRAMES,
+  TARGETS,
+  STANCES,
+  ROLES,
+  CELL_ROLES,
+  FRAME_JA,
+  FRAME_JA_PLAIN,
+} from "../../shared/src/vocabulary.ts";
 
-export const TARGETS = [
-  "個人",
-  "家族",
-  "子ども・将来世代",
-  "高齢者",
-  "現役世代",
-  "女性",
-  "障害者・マイノリティ",
-  "中小企業",
-  "大企業・産業",
-  "地方",
-  "国民全体",
-  "外国人・移民",
-  "国際社会",
-  "自然環境",
-];
-
-export const STANCES = ["uphold", "override", "neutral"];
-export const ROLES = ["beneficiary", "threat", "neutral"];
+import { FRAMES, TARGETS, STANCES, ROLES } from "../../shared/src/vocabulary.ts";
 
 // --- 出力スキーマ -------------------------------------------------------------
 

@@ -43,7 +43,7 @@ export default defineConfig([
 
   // API と DBスキーマ (素の TypeScript)
   {
-    files: ["api/**/*.ts", "db/**/*.ts"],
+    files: ["api/**/*.ts", "db/**/*.ts", "shared/**/*.ts"],
     extends: [tseslint.configs.recommended],
     rules: unusedVarsRule,
   },

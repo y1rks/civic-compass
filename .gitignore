@@ -52,3 +52,7 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 *.tsbuildinfo
+
+# テスト実行中だけ生成される、tsx を変換した一時ファイル
+frontend/app/*.compiled.mjs
+frontend/tests/*.compiled.mjs

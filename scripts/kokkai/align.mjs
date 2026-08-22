@@ -4,7 +4,7 @@
 //   LLM に char_range / evidence_span を数えさせると必ずずれる。抜き出しを返させて
 //   こちらで indexOf するほうが正確で、しかも **原文にない引用を機械的に検出できる**。
 //   引用が見つからないタグは「推論でタグを付けた」ということなので破棄する。
-//   （CLAUDE.personalize.md §6「evidence_span を示せないタグは付けない」の実装）
+//   （docs/design-constraints.md「推論でタグを付ける」の実装）
 
 /** 全角半角・空白・引用符の揺れを吸収した比較用の文字列に変換する */
 function normalize(s) {

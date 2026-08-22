@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowUpRight, Check, ChevronRight, Compass, Heart,
-  Home, LockKeyhole, MessageCircle, Sparkles, X,
+  ArrowLeft, ArrowUpRight, Check, ChevronRight, Compass,
+  Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
 } from "lucide-react";
-import { getArticles, getMatches, getProfileMatches, saveInterest } from "../lib/api";
-import type { Article, Match, SavedInterest } from "../lib/types";
+import { getAnswers, getArticles, getMatches, getProfileMatches, saveAnswer } from "../lib/api";
+import type { Article, Match, SavedAnswer } from "../lib/types";
+import { DEFAULT_INTEREST, interestLabel } from "../lib/interest";
+import { OpinionSheet } from "./opinion-sheet";
+import type { Answers } from "./question-block";
 
 type Screen = "feed" | "detail" | "profile";
 
@@ -16,18 +19,10 @@ export default function HomePage() {
   const [visibleCount, setVisibleCount] = useState(5);
   const [selected, setSelected] = useState<Article | null>(null);
   const [comment, setComment] = useState("");
-  const [saved, setSaved] = useState<Record<string, SavedInterest>>(() => {
-    if (typeof window === "undefined") return {};
-
-    const stored = window.localStorage.getItem("civic-compass-interests");
-    if (!stored) return {};
-
-    try {
-      return JSON.parse(stored) as Record<string, SavedInterest>;
-    } catch {
-      return {};
-    }
-  });
+  const [answers, setAnswers] = useState<Answers>({});
+  const [interest, setInterest] = useState<number>(DEFAULT_INTEREST);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [saved, setSaved] = useState<Record<string, SavedAnswer>>({});
   const [modalOpen, setModalOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [profileMatches, setProfileMatches] = useState<Match[]>([]);
@@ -47,6 +42,29 @@ export default function HomePage() {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * 保存済みの意見は D1 から読みます。ユーザーの特定はサーバー側で行うので、
+   * アカウント切り替えを入れてもこの呼び出しは変わりません。
+   *
+   * 一覧に戻るたびに読み直すのは、起動時の1回きりだと DB 側の変化に追随できず、
+   * 画面が「保存した覚えのない記事」を保存済みとして出し続けるためです。
+   */
+  useEffect(() => {
+    if (screen !== "feed") return;
+
+    let cancelled = false;
+    void getAnswers()
+      .then((rows) => {
+        if (cancelled) return;
+        setSaved(Object.fromEntries(rows.map((row) => [row.articleId, row])));
+      })
+      .catch((error: unknown) => console.error("Failed to load answers", error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [screen]);
 
   useEffect(() => {
     const articleIds = Object.keys(saved);
@@ -83,6 +101,9 @@ export default function HomePage() {
   const openArticle = (article: Article) => {
     setSelected(article);
     setComment(saved[article.id]?.comment ?? "");
+    setAnswers(saved[article.id]?.selections ?? {});
+    setInterest(saved[article.id]?.interest ?? DEFAULT_INTEREST);
+    setSheetOpen(false);
     setScreen("detail");
     window.scrollTo({ top: 0, behavior: "instant" });
   };
@@ -91,14 +112,18 @@ export default function HomePage() {
     if (!selected) return;
     setSaving(true);
     try {
-      const interest = await saveInterest(selected.id, comment.trim());
-      const next = { ...saved, [selected.id]: interest };
-      setSaved(next);
-      window.localStorage.setItem("civic-compass-interests", JSON.stringify(next));
+      const savedAnswer = await saveAnswer({
+        articleId: selected.id,
+        interest,
+        comment: comment.trim(),
+        selections: answers,
+      });
+      setSaved({ ...saved, [selected.id]: savedAnswer });
+      setSheetOpen(false);
       setMatches(await getMatches(selected.id));
       setModalOpen(true);
     } catch (error) {
-      console.error("Failed to save interest", error);
+      console.error("Failed to save answer", error);
     } finally {
       setSaving(false);
     }
@@ -107,7 +132,21 @@ export default function HomePage() {
   return (
     <main className="app-shell">
       {screen === "feed" && <Feed articles={articles.slice(0, visibleCount)} saved={saved} onOpen={openArticle} loadingMore={loadingMore} loadMoreRef={loadMoreRef} />}
-      {screen === "detail" && selected && <ArticleDetail article={selected} comment={comment} setComment={setComment} isSaved={Boolean(saved[selected.id])} saving={saving} onBack={() => setScreen("feed")} onSave={handleSave} />}
+      {screen === "detail" && selected && <ArticleDetail article={selected} isSaved={Boolean(saved[selected.id])} onBack={() => setScreen("feed")} onOpenSheet={() => setSheetOpen(true)} />}
+      {sheetOpen && selected && (
+        <OpinionSheet
+          article={selected}
+          interest={interest}
+          onInterest={setInterest}
+          answers={answers}
+          onAnswer={(questionId, stance) => setAnswers((current) => ({ ...current, [questionId]: stance }))}
+          comment={comment}
+          setComment={setComment}
+          saving={saving}
+          onCancel={() => setSheetOpen(false)}
+          onSave={handleSave}
+        />
+      )}
       {screen === "profile" && <Profile matches={profileMatches} savedCount={Object.keys(saved).length} />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
       {modalOpen && selected && <MatchModal article={selected} matches={matches} onClose={() => setModalOpen(false)} />}
@@ -115,8 +154,22 @@ export default function HomePage() {
   );
 }
 
+/**
+ * 一覧に出す関心度のバッジ。シートで選んだのと同じ言葉を出します。
+ * 「関心がない」で保存した記事を「関心あり」と表示しないための分岐です。
+ */
+function InterestBadge({ interest }: { interest: number }) {
+  const interested = interest > 0;
+
+  return (
+    <span className={interested ? "saved-badge" : "saved-badge muted"}>
+      {interested ? <Check size={11} /> : <Minus size={11} />} {interestLabel(interest)}
+    </span>
+  );
+}
+
 function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
-  articles: Article[]; saved: Record<string, SavedInterest>; onOpen: (article: Article) => void;
+  articles: Article[]; saved: Record<string, SavedAnswer>; onOpen: (article: Article) => void;
   loadingMore: boolean; loadMoreRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
@@ -140,7 +193,7 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
               <div className="article-image-wrap">
                 <img src={article.image} alt="" className="article-image" />
                 {index === 0 && <span className="top-story">注目</span>}
-                {saved[article.id] && <span className="saved-badge"><Check size={11} /> 関心あり</span>}
+                {saved[article.id] && <InterestBadge interest={saved[article.id].interest} />}
               </div>
               <div className="article-body">
                 <div className="article-meta"><span>{article.category}</span></div>
@@ -157,14 +210,15 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
   );
 }
 
-function ArticleDetail({ article, comment, setComment, isSaved, saving, onBack, onSave }: {
-  article: Article; comment: string; setComment: (value: string) => void; isSaved: boolean;
-  saving: boolean; onBack: () => void; onSave: () => void;
+function ArticleDetail({ article, isSaved, onBack, onOpenSheet }: {
+  article: Article; isSaved: boolean; onBack: () => void; onOpenSheet: () => void;
 }) {
   return (
     <div className="screen detail-screen">
-      <header className="detail-nav">
+      <div className="back-layer">
         <button className="round-button" onClick={onBack} aria-label="ニュース一覧へ戻る"><ArrowLeft size={21} /></button>
+      </div>
+      <header className="detail-nav">
         <span>{article.source}</span>
       </header>
       <article>
@@ -178,11 +232,13 @@ function ArticleDetail({ article, comment, setComment, isSaved, saving, onBack, 
           <div className="article-note"><strong>この記事について</strong><br />本画面の記事・数値はUI確認用のサンプルです。実際のサービスでは提供APIの情報を表示します。</div>
         </div>
       </article>
-      <div className="interest-panel">
-        <div className="interest-title"><div><span className="heart-box"><Heart size={18} fill="currentColor" /></span><strong>この記事に関心がありますか？</strong></div><span><LockKeyhole size={12} /> 非公開</span></div>
-        <label className="comment-box"><MessageCircle size={18} /><textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={160} placeholder="ひとこと残す（任意）" aria-label="関心についてのコメント" /></label>
-        <button className="primary-button" onClick={onSave} disabled={saving}>
-          {saving ? <><span className="button-spinner" />保存しています</> : <><Heart size={18} fill="currentColor" />{isSaved ? "内容を更新してマッチを見る" : "関心ありで保存する"}</>}
+      <div className="fab-layer">
+        <button
+          className={isSaved ? "fab saved" : "fab"}
+          onClick={onOpenSheet}
+          aria-label={isSaved ? "この記事への意見を編集する" : "この記事への意見を書く"}
+        >
+          <MessageCircleMore size={26} />
         </button>
       </div>
     </div>
@@ -233,7 +289,7 @@ function Profile({ matches, savedCount }: { matches: Match[]; savedCount: number
         <h1>あなたの政治コンパス</h1>
         <p>関心を保存するほど、マッチの精度が高まります。</p>
         <div className="profile-stats">
-          <div><strong>{savedCount}</strong><span>関心を示した記事</span></div>
+          <div><strong>{savedCount}</strong><span>回答した記事</span></div>
           <div><strong>{savedCount === 0 ? 0 : Math.min(86, 58 + savedCount * 7)}<small>%</small></strong><span>分析の深さ</span></div>
         </div>
       </header>

@@ -35,6 +35,8 @@ button { color:inherit; }
 .top-story,.saved-badge { position:absolute; top:10px; left:10px; border-radius:99px; padding:5px 9px; font-size:10px; font-weight:800; }
 .top-story { background:var(--coral); color:white; }
 .saved-badge { left:auto; right:10px; background:rgba(248,246,239,.94); color:var(--green); display:flex; gap:4px; align-items:center; }
+/* 「関心がない」で保存した記事。答えてはいるが関心はない、と分かる見た目にする。 */
+.saved-badge.muted { color:#7d8b88; }
 .article-body { padding:14px 14px 12px; min-width:0; display:flex; flex-direction:column; }
 .featured .article-body { padding:17px 17px 16px; }
 .article-meta,.article-source { display:flex; align-items:center; gap:7px; color:#798885; font-size:9px; }
@@ -50,8 +52,11 @@ button { color:inherit; }
 .bottom-nav { position:fixed; z-index:20; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); height:76px; padding:8px max(24px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-bottom)); background:rgba(255,255,255,.93); border-top:1px solid var(--line); backdrop-filter:blur(18px); display:grid; grid-template-columns:1fr 1fr; }
 .bottom-nav button { border:0; background:transparent; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#8a9795; font-size:9px; cursor:pointer; }
 .bottom-nav button.active { color:var(--green); font-weight:800; }
-.detail-screen { padding-bottom:286px; background:#fff; }
-.detail-nav { height:62px; padding:0 15px; display:grid; grid-template-columns:40px 1fr 40px; align-items:center; background:rgba(255,255,255,.94); position:sticky; top:0; z-index:8; border-bottom:1px solid var(--line); backdrop-filter:blur(14px); }
+.detail-screen { padding-bottom:110px; background:#fff; }
+.detail-nav { height:62px; padding:0 62px; display:flex; align-items:center; justify-content:center; background:#fff; border-bottom:1px solid var(--line); }
+/* 戻るボタンだけは常に見えるように固定する。記事画像の上にも重なるので影を付ける。 */
+.back-layer { position:fixed; z-index:16; top:0; left:50%; transform:translateX(-50%); width:min(100%,520px); padding:12px 15px; pointer-events:none; }
+.back-layer .round-button { pointer-events:auto; background:rgba(255,255,255,.94); backdrop-filter:blur(10px); box-shadow:0 4px 16px rgba(14,31,28,.18); }
 .detail-nav>span { text-align:center; font-size:10px; letter-spacing:.08em; font-weight:800; }
 .round-button { width:38px; height:38px; border:1px solid var(--line); background:#fff; border-radius:50%; display:grid; place-items:center; cursor:pointer; }
 .round-button.light { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.14); color:white; }
@@ -67,16 +72,67 @@ button { color:inherit; }
 .byline small { color:#8c9896; }
 .article-detail-body>p { font-size:14px; line-height:2.1; color:#334a46; }
 .article-note { margin-top:26px; padding:14px; border-radius:10px; background:var(--paper); color:#74817f; font-size:10px; line-height:1.7; }
-.interest-panel { position:fixed; z-index:15; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); padding:14px 16px max(16px,env(safe-area-inset-bottom)); background:rgba(247,244,237,.97); border-top:1px solid rgba(24,55,51,.15); box-shadow:0 -15px 35px rgba(25,45,41,.1); backdrop-filter:blur(15px); }
-.interest-title,.interest-title>div { display:flex; align-items:center; }
-.interest-title { justify-content:space-between; font-size:12px; }
-.interest-title>div { gap:8px; }
-.interest-title>span { font-size:9px; color:#74827f; display:flex; align-items:center; gap:4px; }
-.heart-box { width:30px; height:30px; border-radius:9px; background:#fee5dc; color:var(--coral); display:grid; place-items:center; }
-.comment-box { height:52px; margin:11px 0 9px; padding:0 13px; border:1px solid var(--line); border-radius:11px; background:white; display:flex; align-items:center; gap:10px; color:#8c9996; }
-.comment-box textarea { resize:none; border:0; outline:none; width:100%; height:38px; padding:9px 0; color:var(--ink); font-size:12px; background:transparent; }
+/* --- 意見入力のボトムシート ------------------------------------------------ */
+.sheet-backdrop { position:fixed; inset:0; z-index:30; background:rgba(14,31,28,.42); animation:fadeIn .2s ease; }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+.opinion-sheet { position:fixed; z-index:31; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); max-height:90dvh; display:flex; flex-direction:column; background:var(--paper); border-radius:20px 20px 0 0; box-shadow:0 -18px 45px rgba(14,31,28,.25); animation:sheetIn .3s cubic-bezier(.2,.8,.2,1); }
+@keyframes sheetIn { from { transform:translate(-50%,100%); } to { transform:translate(-50%,0); } }
+.sheet-head { padding:9px 18px 12px; border-bottom:1px solid var(--line); }
+.sheet-grabber { display:block; width:38px; height:4px; margin:0 auto 13px; border-radius:99px; background:rgba(24,55,51,.16); }
+.sheet-title, .sheet-title>div { display:flex; align-items:center; }
+.sheet-title { justify-content:space-between; font-size:13px; }
+.sheet-title>div { gap:9px; }
+.sheet-title>span { display:flex; align-items:center; gap:4px; font-size:9px; color:#74827f; }
+.sheet-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4px 18px 20px; }
+.sheet-section { padding:18px 0 0; }
+.sheet-section+.sheet-section { border-top:1px solid var(--line); margin-top:18px; }
+.sheet-section-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:11px; font-size:13px; }
+.sheet-section-head strong { font-weight:800; line-height:1.6; }
+.required-mark { color:var(--coral); font-size:11px; }
+.optional-mark { color:#8b9895; font-size:11px; font-weight:600; }
+.question-progress { flex:none; padding:4px 9px; border-radius:99px; background:#fff; border:1px solid var(--line); color:#74827f; font-size:10px; font-weight:800; }
+
+/* 関心度。寄与 w に掛かるので、選ばせる前提で既定値を「気になる」にしてある。 */
+.interest-levels { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.interest-level { padding:13px 4px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#5d6f6c; font-size:11px; font-weight:700; cursor:pointer; transition:border-color .15s,background .15s; }
+.interest-level.selected { border-color:var(--coral); background:#fdf2ee; color:var(--ink); }
+
+/* 争点の選択肢。stance は文面が担うので、ラベルとしては出さない。 */
+.question-card { border:0; margin:0 0 14px; padding:0; min-width:0; }
+.question-card:last-child { margin-bottom:0; }
+.question-card legend { padding:0; font-size:12px; font-weight:800; line-height:1.7; }
+.option-list { display:grid; gap:7px; margin-top:10px; }
+.option { position:relative; display:grid; grid-template-columns:20px 1fr; gap:10px; align-items:start; padding:12px 13px; border:1px solid var(--line); border-radius:12px; background:#fff; cursor:pointer; transition:border-color .15s,background .15s; }
+.option:hover { border-color:rgba(24,55,51,.26); }
+.option input { position:absolute; width:1px; height:1px; opacity:0; }
+.option-mark { width:20px; height:20px; margin-top:1px; border:1.5px solid rgba(24,55,51,.24); border-radius:50%; display:grid; place-items:center; color:#fff; }
+.option-label { font-size:12px; line-height:1.8; color:#41544f; }
+.option.selected { border-color:var(--coral); background:#fdf2ee; }
+.option.selected .option-mark { background:var(--coral); border-color:var(--coral); }
+.option.selected .option-label { color:var(--ink); font-weight:600; }
+.option:has(input:focus-visible) { outline:2px solid var(--coral); outline-offset:2px; }
+
+.sheet-foot { padding:12px 18px max(14px,env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:rgba(247,244,237,.97); }
+.sheet-hint { margin:0 0 9px; font-size:10px; color:#7d8b88; text-align:center; }
+.sheet-actions { display:grid; grid-template-columns:1fr 1.5fr; gap:10px; }
+.ghost-button { height:50px; border-radius:12px; border:1px solid var(--line); background:#fff; color:var(--ink); font-weight:800; font-size:13px; cursor:pointer; }
+.ghost-button:disabled { opacity:.5; cursor:not-allowed; }
+/* 自由記述。枠と余白でテキストボックスだと分かるようにする。 */
+.comment-box { display:flex; align-items:flex-start; gap:9px; padding:12px 13px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#9aa6a3; transition:border-color .15s,box-shadow .15s; }
+.comment-box:focus-within { border-color:var(--coral); box-shadow:0 0 0 3px rgba(232,111,76,.12); }
+.comment-box>svg { flex:none; margin-top:2px; }
+.comment-box textarea { flex:1; min-width:0; height:80px; padding:0; border:0; outline:none; resize:none; background:transparent; color:var(--ink); font-size:12px; line-height:1.85; }
+.comment-box textarea::placeholder { color:#a5b0ad; }
+
 .primary-button,.modal-cta { width:100%; height:50px; border-radius:12px; border:0; background:var(--coral); color:white; font-weight:800; font-size:13px; display:flex; gap:8px; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 7px 18px rgba(213,90,55,.2); }
-.primary-button:disabled { opacity:.7; cursor:wait; }
+.primary-button:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+/* 記事詳細の右下に出す丸ボタン。意見入力シートを開くだけの入口。 */
+.fab-layer { position:fixed; z-index:15; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); padding:0 18px max(18px,env(safe-area-inset-bottom)); display:flex; justify-content:flex-end; pointer-events:none; }
+.fab { pointer-events:auto; position:relative; width:60px; height:60px; border:0; border-radius:50%; background:var(--coral); color:#fff; display:grid; place-items:center; cursor:pointer; box-shadow:0 10px 26px rgba(213,90,55,.38); transition:transform .16s,box-shadow .16s; }
+.fab:hover { box-shadow:0 12px 30px rgba(213,90,55,.46); }
+.fab:active { transform:scale(.94); }
+.fab.saved::after { content:""; position:absolute; top:3px; right:3px; width:13px; height:13px; border-radius:50%; background:var(--green); border:2.5px solid var(--paper); }
+.sheet-icon { width:30px; height:30px; border-radius:9px; background:#fee5dc; color:var(--coral); display:grid; place-items:center; }
 .match-modal { position:fixed; z-index:50; inset:0; max-width:520px; margin:0 auto; overflow-y:auto; background:var(--green); color:white; animation:modalIn .35s cubic-bezier(.2,.8,.2,1); }
 @keyframes modalIn { from { transform:translateY(100%); } to { transform:translateY(0); } }
 .modal-glow { position:absolute; top:-100px; left:50%; transform:translateX(-50%); width:370px; height:370px; border-radius:50%; background:radial-gradient(circle,rgba(71,128,112,.48),transparent 69%); pointer-events:none; }
@@ -133,5 +189,5 @@ button { color:inherit; }
 .empty-state svg { color:var(--coral); }
 .empty-state h2 { font-family:Georgia,"Yu Mincho",serif; font-size:17px; }
 .empty-state p { font-size:11px; color:#74827f; line-height:1.7; }
-@media (min-width:700px) { .app-shell { margin-top:20px; margin-bottom:20px; min-height:calc(100dvh - 40px); border-radius:24px; } .bottom-nav,.interest-panel { bottom:0; border-radius:0 0 24px 24px; } .match-modal { top:20px; bottom:20px; border-radius:24px; } }
+@media (min-width:700px) { .app-shell { margin-top:20px; margin-bottom:20px; min-height:calc(100dvh - 40px); border-radius:24px; } .bottom-nav { bottom:0; border-radius:0 0 24px 24px; } .fab-layer { bottom:20px; } .back-layer { top:20px; } .match-modal { top:20px; bottom:20px; border-radius:24px; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }
