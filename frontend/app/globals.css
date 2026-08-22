@@ -134,5 +134,5 @@ button { color:inherit; }
 .empty-state svg { color:var(--coral); }
 .empty-state h2 { font-family:Georgia,"Yu Mincho",serif; font-size:17px; }
 .empty-state p { font-size:11px; color:#74827f; line-height:1.7; }
-@media (min-width:700px) { .app-shell { margin-top:20px; margin-bottom:20px; min-height:calc(100dvh - 40px); border-radius:24px; } .bottom-nav,.interest-panel { bottom:20px; border-radius:0 0 24px 24px; } .match-modal { top:20px; bottom:20px; border-radius:24px; } }
+@media (min-width:700px) { .app-shell { margin-top:20px; margin-bottom:20px; min-height:calc(100dvh - 40px); border-radius:24px; } .bottom-nav,.interest-panel { bottom:0; border-radius:0 0 24px 24px; } .match-modal { top:20px; bottom:20px; border-radius:24px; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }
