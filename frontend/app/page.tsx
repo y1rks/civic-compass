@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronLeft, Compass,
-  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Quote, Sparkles, X,
+  ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, Compass,
+  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
 } from "lucide-react";
 import { getAnswers, getArticles, getPerspectives, getProfileMatches, saveAnswer } from "../lib/api";
 import type { Article, Match, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement, SavedAnswer } from "../lib/types";
@@ -447,11 +447,11 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
       {/* JS の状態を持たない <details> なので、描画直後から開閉できます。 */}
       {rest.length > 0 && (
         <details className="statement-fold">
+          {/* 開いていないときは右向き、開くと下向き。開閉の向きは CSS の回転で出します。 */}
           <summary>
-            <Quote size={11} />
+            <ChevronRight size={13} className="fold-chevron" />
             その他の答弁
             <span className="fold-count">{rest.length}件</span>
-            <ChevronDown size={14} className="fold-chevron" />
           </summary>
           <div className="statement-list">
             {rest.map((statement, index) => (

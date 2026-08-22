@@ -205,8 +205,9 @@ button { color:inherit; }
 .statement-fold>summary:hover { background:#e9e6da; }
 .statement-fold[open]>summary { border-radius:10px 10px 0 0; }
 .fold-count { color:#8a9694; font-weight:700; }
-.fold-chevron { margin-left:auto; transition:transform .2s; }
-.statement-fold[open] .fold-chevron { transform:rotate(180deg); }
+/* 閉じているとき右向き（▸）、開くと下向き（▼）。 */
+.fold-chevron { flex:0 0 auto; transition:transform .2s; }
+.statement-fold[open] .fold-chevron { transform:rotate(90deg); }
 .statement { margin-top:6px; padding:11px 12px; border-radius:11px; background:#f6f4ed; }
 /* 畳まずに出す代表の1件。上の説明文から少し離します。 */
 .statement.featured { margin-top:12px; }
