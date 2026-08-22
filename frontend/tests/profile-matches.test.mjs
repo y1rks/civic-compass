@@ -13,7 +13,7 @@ const { code } = await transform(await readFile(sourceUrl, "utf8"), {
   jsx: "automatic",
 });
 await writeFile(outputUrl, code);
-const { ProfileMatches } = await import(outputUrl.href);
+const { ProfileMatches, withRank } = await import(outputUrl.href);
 test.after(() => rm(outputUrl, { force: true }));
 
 const result = {
@@ -94,6 +94,31 @@ test("4件目以降は畳み、もっと見るボタンで開けるようにす�
 
 test("3件以下なら「もっと見る」を出さない", () => {
   assert.doesNotMatch(render(), /match-more/);
+});
+
+// 同率は同じ順位にし、次の順位はその件数ぶん飛ばします（1, 2, 2, 4）。
+test("マッチ度が同率なら同じ順位を出す", () => {
+  const scores = [70, 33, 33, 30];
+  const tied = scores.map((score, index) => ({
+    ...result.matches[0],
+    speaker_id: `P0000${index + 1}`,
+    politician_name: `議員${index + 1}`,
+    match_score: score,
+  }));
+  const html = render({ result: { ...result, matches: tied } });
+  const ranks = [...html.matchAll(/class="profile-rank">(\d+)</g)].map(([, rank]) => rank);
+
+  // 畳んでいるので3件目まで。4件目が「4位」になることは下の withRank のテストで見ます。
+  assert.deepEqual(ranks, ["1", "2", "2"]);
+});
+
+test("同率のあとの順位はその件数ぶん飛ばす", () => {
+  const ranks = (scores) => withRank(scores.map((match_score) => ({ match_score }))).map(({ rank }) => rank);
+
+  assert.deepEqual(ranks([70, 33, 33, 30]), [1, 2, 2, 4]);
+  assert.deepEqual(ranks([50, 40, 40, 40, 10]), [1, 2, 2, 2, 5]);
+  assert.deepEqual(ranks([33, 33, 33]), [1, 1, 1]);
+  assert.deepEqual(ranks([]), []);
 });
 
 test("信頼性不足なら追加回答を促す", () => {

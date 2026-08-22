@@ -24,6 +24,23 @@ function labelColor(background: string): string {
   return (r * 299 + g * 587 + b * 114) / 1000 > 160 ? "#183733" : "#fff";
 }
 
+/**
+ * 同率は同じ順位にし、次の順位はその件数ぶん飛ばします（1, 2, 2, 4）。
+ *
+ * API がマッチ度の降順で返すことが前提です。順位を出さずに並び順だけで見せると、
+ * 33% が2つ並んでいるのに「3位」「4位」と差があるように読めてしまいます。
+ */
+export function withRank<T extends { match_score: number }>(list: T[]): { item: T; rank: number }[] {
+  let rank = 0;
+  let previous: number | null = null;
+
+  return list.map((item, index) => {
+    if (item.match_score !== previous) rank = index + 1;
+    previous = item.match_score;
+    return { item, rank };
+  });
+}
+
 /** 畳んでいるときに見せる件数。API が返すのは最大7件です。 */
 const COLLAPSED_COUNT = 3;
 
@@ -58,10 +75,10 @@ function sourceNote(parties: PartyProfileMatch[]): string | null {
   return "政党の傾向は、各党の公約・基本政策を主に、所属議員の国会での発言も加えて集計しています。";
 }
 
-function PoliticianCard({ match, index }: { match: PoliticianProfileMatch; index: number }) {
+function PoliticianCard({ match, rank, index }: { match: PoliticianProfileMatch; rank: number; index: number }) {
   return (
     <a className="profile-match-card" href={match.website} target="_blank" rel="noreferrer">
-      <span className="profile-rank">{index + 1}</span>
+      <span className="profile-rank">{rank}</span>
       <div className="politician-avatar large" style={{ background: COLORS[index % COLORS.length] }}>{[...match.politician_name.replaceAll(" ", "")].slice(0, 2).join("")}</div>
       <div className="profile-match-info">
         <h2>{match.politician_name}</h2>
@@ -73,7 +90,7 @@ function PoliticianCard({ match, index }: { match: PoliticianProfileMatch; index
   );
 }
 
-function PartyCard({ match, index }: { match: PartyProfileMatch; index: number }) {
+function PartyCard({ match, rank }: { match: PartyProfileMatch; rank: number }) {
   const seats = [
     match.seats.shugiin > 0 ? `衆${match.seats.shugiin}` : null,
     match.seats.sangiin > 0 ? `参${match.seats.sangiin}` : null,
@@ -81,7 +98,7 @@ function PartyCard({ match, index }: { match: PartyProfileMatch; index: number }
 
   return (
     <a className="profile-match-card" href={match.website} target="_blank" rel="noreferrer">
-      <span className="profile-rank">{index + 1}</span>
+      <span className="profile-rank">{rank}</span>
       <div className="politician-avatar large party" style={{ background: match.color, color: labelColor(match.color) }}>{match.short_name}</div>
       <div className="profile-match-info">
         <h2>{match.party}</h2>
@@ -152,7 +169,9 @@ export function ProfileMatches({
       {tab === "politicians" ? (
         <div role="tabpanel" id="match-panel-politicians" aria-labelledby="match-tab-politicians">
           <div className="profile-match-list" id="match-list-politicians">
-            {visible(result.matches).map((match, index) => <PoliticianCard key={match.speaker_id} match={match} index={index} />)}
+            {visible(withRank(result.matches)).map(({ item, rank }, index) => (
+              <PoliticianCard key={item.speaker_id} match={item} rank={rank} index={index} />
+            ))}
           </div>
           <MoreToggle total={result.matches.length} expanded={expanded.politicians} onToggle={toggle} controls="match-list-politicians" />
         </div>
@@ -163,7 +182,9 @@ export function ProfileMatches({
             : (
               <>
                 <div className="profile-match-list" id="match-list-parties">
-                  {visible(parties).map((match, index) => <PartyCard key={match.party_id} match={match} index={index} />)}
+                  {visible(withRank(parties)).map(({ item, rank }) => (
+                    <PartyCard key={item.party_id} match={item} rank={rank} />
+                  ))}
                 </div>
                 <MoreToggle total={parties.length} expanded={expanded.parties} onToggle={toggle} controls="match-list-parties" />
                 {note ? <p className="match-tab-note">{note}</p> : null}
