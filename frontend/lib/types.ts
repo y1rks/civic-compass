@@ -56,6 +56,61 @@ export type Match = {
   website: string;
 };
 
+export type ProfileMatchReason = {
+  text: string;
+  frame: import("@civic-compass/shared").Frame;
+  target: import("@civic-compass/shared").Target;
+  role: import("@civic-compass/shared").CellRole;
+  contribution: number;
+};
+
+export type ProfileMatchDifference = {
+  text: string;
+  frame: import("@civic-compass/shared").Frame;
+  target: import("@civic-compass/shared").Target;
+  role: import("@civic-compass/shared").CellRole;
+};
+
+export type ProfileMatchEvidence = {
+  date: string | null;
+  summary: string;
+  url: string;
+  frame: import("@civic-compass/shared").Frame;
+  target: import("@civic-compass/shared").Target;
+  role: import("@civic-compass/shared").CellRole;
+  quote?: string;
+  highlight?: string;
+};
+
+export type PoliticianProfileMatch = {
+  speaker_id: string;
+  politician_name: string;
+  party: string;
+  house: string;
+  website: string;
+  match_score: number;
+  matched_cells: number;
+  reasons: ProfileMatchReason[];
+  differences: ProfileMatchDifference[];
+  evidence: ProfileMatchEvidence[];
+};
+
+export type PartyProfileMatch = {
+  party: string;
+  match_score: number;
+  matched_cells: number;
+  n_politicians: number;
+};
+
+export type ProfileMatchesResponse = {
+  user_id: string;
+  reliable: boolean;
+  user_summary: string;
+  matches: PoliticianProfileMatch[];
+  party_matches: PartyProfileMatch[];
+  disclaimer: string;
+};
+
 /** KV USER_PROFILES のうち、政治コンパス画面に表示する上位セル。 */
 export type UserProfileCell = {
   frame: import("@civic-compass/shared").Frame;

@@ -16,11 +16,3 @@ export const politicianMatches: Match[] = [
   { id: "b", name: "藤原 健太", initials: "FK", party: "共創ネット", area: "東京11区", score: 86, reason: "エネルギー転換を成長戦略と捉え、送電網などの基盤整備を優先する姿勢が近いです。", color: "#527b6b", website: "https://example.com/politicians/fujiwara" },
   { id: "c", name: "野村 さつき", initials: "NS", party: "地域の風", area: "長野2区", score: 79, reason: "環境政策を進めながら、景観や地域経済への影響も慎重に評価する立場が共通しています。", color: "#68759c", website: "https://example.com/politicians/nomura" },
 ];
-
-export function createProfileMatches(articleIds: string[]): Match[] {
-  const boost = Math.min(articleIds.length * 2, 5);
-  return politicianMatches.map((person, index) => ({
-    ...person,
-    score: Math.min(98, person.score - 5 + boost - index),
-  }));
-}

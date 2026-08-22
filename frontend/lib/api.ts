@@ -1,4 +1,4 @@
-import type { Article, Match, SavedAnswer, UserProfileCell } from "./types";
+import type { Article, Match, ProfileMatchesResponse, SavedAnswer, UserProfileCell } from "./types";
 
 type ArticlesResponse = {
   articles: Article[];
@@ -12,7 +12,7 @@ type AnswerResponse = {
   answer: SavedAnswer;
 };
 
-type MatchesResponse = {
+type ArticleMatchesResponse = {
   matches: Match[];
 };
 
@@ -65,7 +65,7 @@ export async function saveAnswer(input: {
 }
 
 export async function getMatches(articleId: string): Promise<Match[]> {
-  const data = await requestJson<MatchesResponse>(
+  const data = await requestJson<ArticleMatchesResponse>(
     `/api/matches/${encodeURIComponent(articleId)}`,
     undefined,
     "政治家マッチの取得に失敗しました",
@@ -73,13 +73,12 @@ export async function getMatches(articleId: string): Promise<Match[]> {
   return data.matches;
 }
 
-export async function getProfileMatches(articleIds: string[]): Promise<Match[]> {
-  const data = await requestJson<MatchesResponse>("/api/matches/profile", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ articleIds }),
-  }, "総合マッチの取得に失敗しました");
-  return data.matches;
+export async function getProfileMatches(): Promise<ProfileMatchesResponse> {
+  return requestJson<ProfileMatchesResponse>(
+    "/api/matches/profile",
+    undefined,
+    "総合マッチの取得に失敗しました",
+  );
 }
 
 export async function getUserProfileCells(): Promise<UserProfileCell[]> {

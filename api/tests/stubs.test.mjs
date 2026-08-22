@@ -18,7 +18,7 @@ test("記事単位の政治家マッチAPIが3人を返す", async () => {
   assert.equal(data.matches[0].score, 92);
 });
 
-test("総合マッチAPIが保存記事数に応じたスコアを返す", async () => {
+test("旧総合マッチAPIはGETへの移行を案内する", async () => {
   const response = await request("/api/matches/profile", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -26,6 +26,6 @@ test("総合マッチAPIが保存記事数に応じたスコアを返す", async
   });
   const data = await response.json();
 
-  assert.equal(response.status, 200);
-  assert.deepEqual(data.matches.map((match) => match.score), [91, 84, 76]);
+  assert.equal(response.status, 405);
+  assert.match(data.message, /GET \/api\/matches\/profile/);
 });
