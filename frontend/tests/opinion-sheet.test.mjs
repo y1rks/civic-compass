@@ -78,6 +78,11 @@ test("ヘッダーのアイコンはコメントアイコン（ハートでは�
   assert.doesNotMatch(html, /lucide-heart/);
 });
 
+test("ハンドルはシートを閉じる操作として利用できる", () => {
+  const html = render();
+  assert.match(html, /<button[^>]*class="sheet-grabber"[^>]*aria-label="シートを閉じる"/);
+});
+
 test("キャンセルが左、保存が右に並ぶ", () => {
   const html = render();
   assert.ok(html.indexOf("キャンセル") < html.indexOf(">保存する<"), "保存が左に来ている");
