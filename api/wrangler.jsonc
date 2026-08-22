@@ -31,6 +31,15 @@
 		{
 			"binding": "PROFILES",
 			"id": "be85dc91a6184ca1a9fb99a1c6bba867"
+		},
+		// ユーザープロファイルは議員側と名前空間ごと分けています。
+		// 議員側は export-kv.mjs → `wrangler kv bulk put` で一括投入するので、
+		// 同居させるとバッチの事故がユーザーデータに届く範囲に入るためです。
+		// こちらは【3a】answers から作り直せますが、消えると再計算が要ります。
+		//   profile:user:{user_id}   ユーザープロファイル（cells / declined_cells）
+		{
+			"binding": "USER_PROFILES",
+			"id": "1366eb063c4943bbacb4aacb40708e89"
 		}
 	],
 	// D1 は API Worker だけにバインドし、フロントからは Service Binding 経由で利用します。

@@ -20,7 +20,8 @@
   },
   "dependencies": {
     "@civic-compass/db": "*",
-    "hono": "4.13.3"
+    "hono": "4.13.3",
+    "@civic-compass/shared": "*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260821.1",
