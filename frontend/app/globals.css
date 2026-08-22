@@ -25,7 +25,7 @@ button { color:inherit; }
 .section-heading>span { color:#82908e; font-weight:600; font-size:10px; }
 .live-dot { width:7px; height:7px; background:var(--coral); border-radius:50%; box-shadow:0 0 0 4px rgba(232,111,76,.12); }
 .article-list { display:grid; gap:12px; }
-.article-card { width:100%; background:#fff; padding:0; border:1px solid rgba(24,55,51,.06); border-radius:16px; overflow:hidden; text-align:left; display:grid; grid-template-columns:116px 1fr; cursor:pointer; box-shadow:0 3px 16px rgba(26,49,45,.045); transition:transform .18s,box-shadow .18s; }
+.article-card { position:relative; width:100%; background:#fff; padding:0; border:1px solid rgba(24,55,51,.06); border-radius:16px; overflow:hidden; text-align:left; display:grid; grid-template-columns:116px 1fr; cursor:pointer; box-shadow:0 3px 16px rgba(26,49,45,.045); transition:transform .18s,box-shadow .18s; }
 .article-card:active { transform:scale(.985); }
 .article-card.featured { display:block; }
 .article-image-wrap { position:relative; min-height:126px; overflow:hidden; }
@@ -34,9 +34,17 @@ button { color:inherit; }
 .article-card:hover .article-image { transform:scale(1.025); }
 .top-story,.saved-badge { position:absolute; top:10px; left:10px; border-radius:99px; padding:5px 9px; font-size:10px; font-weight:800; }
 .top-story { background:var(--coral); color:white; }
-.saved-badge { left:auto; right:10px; background:rgba(248,246,239,.94); color:var(--green); display:flex; gap:4px; align-items:center; }
+/* バッジは画像の中ではなく**カードの右上**。写真の明暗に文字の可読性が左右されないため。
+   カードの外に出た絶対配置なのでグリッドの列には影響しない。 */
+.saved-badge { left:auto; right:10px; background:#f4f6f3; border:1px solid var(--line); color:var(--green); display:flex; gap:4px; align-items:center; }
 /* 「関心なし」で保存した記事。答えてはいるが関心はない、と分かる見た目にする。 */
 .saved-badge.muted { color:#7d8b88; }
+/* 注目記事は画像が全幅なので、右上でも文字とぶつからない。
+   横並びのカードは右半分が本文なので、左上（＝画像の上）に置く。
+   背景は不透明なので、写真の上でも白いカードの上でも読める。 */
+/* 画像の列は 116px しかないので、角に寄せて少し小さくし、はみ出さないようにする。
+   いちばん長い「あまり関心なし」でも右端 107px に収まる。 */
+.article-card:not(.featured) .saved-badge { top:7px; left:7px; right:auto; padding:4px 8px; gap:3px; }
 .article-body { padding:14px 14px 12px; min-width:0; display:flex; flex-direction:column; }
 .featured .article-body { padding:17px 17px 16px; }
 .article-meta,.article-source { display:flex; align-items:center; gap:7px; color:#798885; font-size:9px; }

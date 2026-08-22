@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, Check, ChevronLeft, ChevronRight, Compass,
-  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
+  ExternalLink, Heart, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, Triangle, X,
 } from "lucide-react";
 import {
   getAnswers, getArticles, getPerspectives, getProfileMatches, getUserProfileCells, saveAnswer,
@@ -12,7 +12,7 @@ import type {
   Article, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement,
   ProfileMatchesResponse, SavedAnswer, UserProfileCell,
 } from "../lib/types";
-import { DEFAULT_INTEREST, interestLabel, isInterested } from "../lib/interest";
+import { DEFAULT_INTEREST, interestIndex, interestLabel, isInterested } from "../lib/interest";
 import { analysisDepth } from "../lib/analysis-depth";
 import { OpinionSheet } from "./opinion-sheet";
 import { ProfileTrends } from "./profile-trends";
@@ -269,16 +269,23 @@ export default function HomePage() {
 }
 
 /**
+ * 段階ごとのアイコン。並びは INTEREST_LEVELS と同じ（関心なし → 関心あり）。
+ * 段階を増やしたらここも足すこと。足し忘れても Minus に落ちるだけで落ちません。
+ */
+const INTEREST_ICONS = [Minus, Triangle, Check, Heart];
+
+/**
  * 一覧に出す関心度のバッジ。シートで選んだのと同じ言葉を出します。
  * 「関心なし」で保存した記事を「関心あり」と表示しないための分岐です。
  */
 function InterestBadge({ interest }: { interest: number }) {
   // 表示だけの判定。集計の「cells に入るか」（interest > 0）とは別（lib/interest.ts）
   const interested = isInterested(interest);
+  const Icon = INTEREST_ICONS[interestIndex(interest)] ?? Minus;
 
   return (
     <span className={interested ? "saved-badge" : "saved-badge muted"}>
-      {interested ? <Check size={11} /> : <Minus size={11} />} {interestLabel(interest)}
+      <Icon size={11} /> {interestLabel(interest)}
     </span>
   );
 }
@@ -304,12 +311,17 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
         <div className="section-heading"><div><span className="live-dot" />最新ニュース</div><span>{articles.length}件</span></div>
         <div className="article-list">
           {articles.map((article, index) => (
-            <button className={`article-card ${index === 0 ? "featured" : ""}`} key={article.id} onClick={() => onOpen(article)}>
+            <button
+              className={`article-card ${index === 0 ? "featured" : ""}`}
+              key={article.id}
+              onClick={() => onOpen(article)}
+            >
               <div className="article-image-wrap">
                 <img src={article.image} alt="" className="article-image" />
                 {index === 0 && <span className="top-story">注目</span>}
-                {saved[article.id] && <InterestBadge interest={saved[article.id].interest} />}
               </div>
+              {/* バッジはカードの右上。画像の上に置くと、写真によって読めなくなる */}
+              {saved[article.id] && <InterestBadge interest={saved[article.id].interest} />}
               <div className="article-body">
                 <div className="article-meta"><span>{article.category}</span></div>
                 <h2>{article.title}</h2>
