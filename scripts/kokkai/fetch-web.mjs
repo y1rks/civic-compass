@@ -5,7 +5,7 @@
 //
 // 出力は data/raw_web/{speaker_id}.jsonl。
 // 国会会議録と違い、こちらは著作物なので【1】utterances でも quote を表示用には使わない。
-// 集計・表示では要約＋出典URLで扱う（CLAUDE.personalize.md §10）。
+// 集計・表示では要約＋出典URLで扱う（docs/design-constraints.md「著作権」）。
 //
 // robots.txt でAIクローラーを拒否しているサイトは取得しない（web-fetch-lib.mjs 参照）。
 // その場合は data/manual/{speaker_id}.md に手でテキストを置けば merge-manual.mjs が取り込む。

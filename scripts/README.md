@@ -131,8 +131,10 @@ npx wrangler d1 execute civic-compass-db --local  --config api/wrangler.jsonc --
 | `politicians.json` | 対象議員マスタ。`speaker_id` は【1】【2】のキーなので**採番後は変更しない** |
 | `prompts/*.md` | segment分割・フレーム抽出のプロンプト |
 
-`llm.mjs` の `FRAMES` / `TARGETS` / `STANCES` / `ROLES` が語彙の正です。
-`CLAUDE.personalize.md` §2 と一致していなければならず、**変更すると【1】の再抽出が必要**になります。
+`FRAMES` / `TARGETS` / `STANCES` / `ROLES` の唯一の正は `shared/src/vocabulary.ts` です
+（各値の意味は `docs/data-reference.md`「中核となる概念」）。`llm.mjs` はそこから
+再エクスポートしているだけなので、**コピーを作らないでください**。
+語彙を変えると **【1】utterances の再抽出が必要**になります。
 
 ---
 
@@ -149,7 +151,7 @@ node scripts/kokkai/expand-evidence.mjs     # 短すぎる evidence_text を文�
 node scripts/kokkai/build-utterances.mjs    # 原文と照合して utterances.jsonl とレポートを作る
 ```
 
-**分割と抽出を1回でやらない**という設計上の約束（`CLAUDE.personalize.md` §6）を守るため、
+**分割と抽出を1回でやらない**という設計上の約束（`docs/design-constraints.md`）を守るため、
 手作業でも工程を分けています。
 
 ---

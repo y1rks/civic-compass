@@ -7,7 +7,7 @@
 //   npx wrangler kv bulk put data/profiles/kv-bulk.json --binding=PROFILES \
 //     --config api/wrangler.jsonc --remote
 //
-// KV のキー設計（CLAUDE.personalize.md §3）
+// KV のキー設計（docs/data-reference.md）
 //   profile:{speaker_id}           議員プロファイル。C のマッチ計算で全件読む
 //   profile:evidence:{speaker_id}  evidence。表示する議員の分だけ読む
 //   profile:party:{党名}            政党プロファイル

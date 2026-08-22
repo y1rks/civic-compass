@@ -1,7 +1,7 @@
 # scripts/kokkai — 発言データの収集と前処理
 
 【1】utterances を作るための**元データ**を用意する部分です。
-`CLAUDE.personalize.md` の「A. 議員プロファイル構築バッチ」のうち、①機械的フィルタまでを担当します。
+`docs/design-constraints.md`「A のパイプライン」のうち、①機械的フィルタまでを担当します。
 
 ```
 国会会議録API ──→ collect.mjs    ──→ data/raw/{id}.jsonl       APIレスポンスそのまま
@@ -139,7 +139,7 @@ full.slice(s, e)   // → 根拠にした箇所
 ### 公式サイトは著作物なので `quotable: false`
 
 国会会議録は公文書なので `evidence` に原文を引用できます（`quotable: true`）。
-一方、議員個人サイトの文章は著作物なので、`CLAUDE.personalize.md` §10 のとおり
+一方、議員個人サイトの文章は著作物なので、`docs/design-constraints.md`「著作権」のとおり
 **要約＋出典リンク**で扱い、原文は表示しません。この区別を `quotable` で持っています。
 
 ### robots.txt は AI クローラー向けの指示にも従う

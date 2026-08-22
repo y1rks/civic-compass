@@ -25,7 +25,7 @@ const RAW_WEB_DIR = path.join(ROOT, "data/raw_web");
 const MANUAL_DIR = path.join(ROOT, "data/manual");
 const CLEAN_DIR = path.join(ROOT, "data/clean");
 
-const MIN_CHARS = 200; // これ未満は抽出に値しない（CLAUDE.personalize.md の機械的フィルタ）
+const MIN_CHARS = 200; // これ未満は抽出に値しない（docs/design-constraints.md「A のパイプライン」①機械的フィルタ）
 
 // "○＜氏名＞君　" / "○国務大臣（＜氏名＞君）　" / "○＜姓＞参考人　" などを剥がす。
 // プレフィックス内に全角スペースは現れないので、行頭○から最初の全角スペースまでを対象にする。

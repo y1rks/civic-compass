@@ -1,6 +1,6 @@
 // Cloudflare Workers AI クライアント。
 //
-// モデル選定の経緯は CLAUDE.personalize.md §12。glm-5.2 を使う。
+// モデル選定の経緯は docs/design-constraints.md「抽出モデルの選定」。glm-5.2 を使う。
 // 認証は `wrangler login` の OAuth トークンを読む。
 //
 // レート制限について
