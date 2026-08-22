@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, Compass,
-  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Pencil, Sparkles, X,
+  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
 } from "lucide-react";
 import { getAnswers, getArticles, getPerspectives, getProfileMatches, saveAnswer } from "../lib/api";
 import type { Article, Match, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement, SavedAnswer } from "../lib/types";
@@ -311,13 +311,14 @@ function ArticleDetail({ article, isSaved, hasUnsavedInput, onBack, onOpenSheet 
       </article>
       <div className="fab-layer">
         <button
-          // 印を出すのは「書きかけで保存していない」ときだけ。保存済みはアイコンで分かります。
-          className={hasUnsavedInput ? "fab unsaved" : "fab"}
+          // editing … 保存済み（色を反転）／ unsaved … 書きかけで保存していない（印を出す）
+          className={`fab${isSaved ? " editing" : ""}${hasUnsavedInput ? " unsaved" : ""}`}
           onClick={onOpenSheet}
           aria-label={`${isSaved ? "この記事への意見を編集する" : "この記事への意見を書く"}${hasUnsavedInput ? "（保存していない入力があります）" : ""}`}
         >
-          {/* 保存済みなら編集モード。押したときに何が起きるかをアイコンでも示します。 */}
-          {isSaved ? <Pencil size={24} /> : <MessageCircleMore size={26} />}
+          {/* アイコンは常に吹き出し。鉛筆にすると別の機能に見えるため、
+              保存済みかどうかは色の反転（.editing）で示します。 */}
+          <MessageCircleMore size={26} />
         </button>
       </div>
     </div>
