@@ -53,6 +53,8 @@ type PartyMaster = {
   short_name: string;
   seats: { shugiin: number; sangiin: number };
   website: string;
+  /** 政党色（Wikipedia Template:政党色）。アイコンの塗りにだけ使います。 */
+  color: string;
   active?: boolean;
 };
 
@@ -174,6 +176,7 @@ matches.get("/profile", async (c) => {
         short_name: master.short_name,
         website: master.website,
         seats: master.seats,
+        color: master.color,
         // manifesto（公約のみ）/ members（所属議員のみ）/ mixed。画面で出典を断るために返します。
         source: profile.source ?? "members",
         match_score: result.match_score,

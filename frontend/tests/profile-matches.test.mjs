@@ -57,6 +57,7 @@ const partyMatch = {
   short_name: "自民",
   website: "https://www.jimin.jp/",
   seats: { shugiin: 316, sangiin: 101 },
+  color: "#3CA324",
   source: "mixed",
   match_score: 62,
   matched_cells: 2,
@@ -73,6 +74,26 @@ test("政治家と政党をタブで切り替えられる", () => {
   // 初期表示は政治家タブ。政党カードは切り替えるまで描画しません。
   assert.match(html, /aria-selected="true"[^>]*>政治家</);
   assert.doesNotMatch(html, /自由民主党・衆議院[\s\S]*自民</);
+});
+
+// 上位3件だけ出し、残りは「もっと見る」で開きます（初期表示は畳んだ状態）。
+test("4件目以降は畳み、もっと見るボタンで開けるようにする", () => {
+  const many = Array.from({ length: 7 }, (_, index) => ({
+    ...result.matches[0],
+    speaker_id: `P0000${index + 1}`,
+    politician_name: `議員${index + 1}`,
+    match_score: 70 - index,
+  }));
+  const html = render({ result: { ...result, matches: many } });
+
+  assert.match(html, /議員3/);
+  assert.doesNotMatch(html, /議員4/);
+  assert.match(html, /class="match-more"[^>]*aria-expanded="false"/);
+  assert.match(html, />もっと見る</);
+});
+
+test("3件以下なら「もっと見る」を出さない", () => {
+  assert.doesNotMatch(render(), /match-more/);
 });
 
 test("信頼性不足なら追加回答を促す", () => {

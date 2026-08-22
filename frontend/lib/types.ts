@@ -205,6 +205,8 @@ export type PartyProfileMatch = {
   short_name: string;
   website: string;
   seats: { shugiin: number; sangiin: number };
+  /** 政党色（Wikipedia Template:政党色）。アイコンの塗りにだけ使います。 */
+  color: string;
   /**
    * プロファイルの出所。
    *

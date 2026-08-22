@@ -8,6 +8,9 @@
     "  参議院: 会派別所属議員数（令和8年8月22日現在）。会派名から政党を割り出している。",
     "web_sources は公約・基本政策のページ。discover-web.mjs --target=parties で候補を出し、手で確定させる。",
     "議員サイトと同じく、政党サイトの文章も著作物なので quotable: false（要約＋リンクで扱う）。",
+    "color は Wikipedia の Template:政党色（2026年2月時点）に載っている各党の政党色。UI のアイコンにだけ使う。",
+    "  いのちの党は旧れいわ新選組の色、減税日本は「減税日本・ゆうこく連合」の色を引き継ぐ。",
+    "  中道改革連合はテンプレートに無いため暫定色（旧立憲 #184589 と旧公明 #F55881 の中間）。",
     "web_sources は discover-web.mjs --target=parties の候補から手で選んだもの（2026-08-23 確認）。",
     "チームみらいは公約を policy.team-mir.ai に置いているため、公式サイトとは別ホストを指定している。",
     "沖縄の風（参院2）は無所属議員を含む会派で政党ではないため、対象に入れていない。"
@@ -35,6 +38,7 @@
         "sangiin": 101
       },
       "website": "https://www.jimin.jp/",
+      "color": "#3CA324",
       "web_sources": [
         {
           "url": "https://www.jimin.jp/policy/",
@@ -62,6 +66,7 @@
         "sangiin": 0
       },
       "website": "https://craj.jp/",
+      "color": "#864E85",
       "web_sources": [
         {
           "url": "https://craj.jp/election2026/policies/",
@@ -95,6 +100,7 @@
         "sangiin": 40
       },
       "website": "https://cdp-japan.jp/",
+      "color": "#184589",
       "web_sources": [
         {
           "url": "https://cdp-japan.jp/visions/policies2025",
@@ -125,6 +131,7 @@
         "sangiin": 21
       },
       "website": "https://www.komei.or.jp/",
+      "color": "#F55881",
       "web_sources": [
         {
           "url": "https://www.komei.or.jp/komeipolicy/",
@@ -152,6 +159,7 @@
         "sangiin": 19
       },
       "website": "https://o-ishin.jp/",
+      "color": "#6FBA2C",
       "web_sources": [
         {
           "url": "https://o-ishin.jp/policy/",
@@ -180,6 +188,7 @@
         "sangiin": 25
       },
       "website": "https://new-kokumin.jp/",
+      "color": "#F8BC00",
       "web_sources": [
         {
           "url": "https://new-kokumin.jp/policies",
@@ -210,6 +219,7 @@
         "sangiin": 15
       },
       "website": "https://sanseito.jp/",
+      "color": "#D85D0F",
       "web_sources": [
         {
           "url": "https://sanseito.jp/political_measures_2026/",
@@ -232,6 +242,7 @@
         "sangiin": 7
       },
       "website": "https://www.jcp.or.jp/",
+      "color": "#DB001C",
       "web_sources": [
         {
           "url": "https://www.jcp.or.jp/web_policy/",
@@ -255,6 +266,7 @@
         "sangiin": 5
       },
       "website": "https://inochinoto.jp/",
+      "color": "#E4027E",
       "web_sources": [
         {
           "url": "https://inochinoto.jp/policy/",
@@ -292,6 +304,7 @@
         "sangiin": 2
       },
       "website": "https://team-mir.ai/",
+      "color": "#66FFCC",
       "web_sources": [
         {
           "url": "https://policy.team-mir.ai/policies",
@@ -317,6 +330,7 @@
         "sangiin": 2
       },
       "website": "https://hoshuto.jp/",
+      "color": "#0A82DC",
       "web_sources": [
         {
           "url": "https://hoshuto.jp/policy/",
@@ -349,6 +363,7 @@
         "sangiin": 2
       },
       "website": "https://sdp.or.jp/",
+      "color": "#01A8EC",
       "web_sources": [
         {
           "url": "https://sdp.or.jp/policies/",
@@ -391,6 +406,7 @@
         "sangiin": 0
       },
       "website": "https://genzeinippon.com/",
+      "color": "#18378A",
       "web_sources": [
         {
           "url": "https://genzeinippon.com/seisaku",

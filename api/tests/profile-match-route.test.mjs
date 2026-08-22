@@ -97,6 +97,7 @@ test("総合マッチをGETで返し、evidence は読まない", async () => {
     short_name: "自民",
     website: "https://www.jimin.jp/",
     seats: { shugiin: 316, sangiin: 101 },
+    color: "#3CA324",
     source: "members",
     match_score: 62,
     matched_cells: 2,
