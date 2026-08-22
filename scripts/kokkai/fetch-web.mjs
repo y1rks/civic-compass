@@ -1,22 +1,21 @@
 #!/usr/bin/env node
-// 各議員の公式サイトから、政策・理念を述べたページの本文を取得する。
+// 議員・政党の公式サイトから、政策・理念を述べたページの本文を取得する。
 //
-//   node scripts/kokkai/fetch-web.mjs [--only=P00002] [--force]
+//   node scripts/kokkai/fetch-web.mjs [--target=politicians|parties] [--only=P00002] [--force]
 //
-// 出力は data/raw_web/{speaker_id}.jsonl。
+// 出力は data/raw_web/{id}.jsonl（議員は speaker_id、政党は party_id）。
 // 国会会議録と違い、こちらは著作物なので【1】utterances でも quote を表示用には使わない。
 // 集計・表示では要約＋出典URLで扱う（docs/design-constraints.md「著作権」）。
 //
 // robots.txt でAIクローラーを拒否しているサイトは取得しない（web-fetch-lib.mjs 参照）。
 // その場合は data/manual/{speaker_id}.md に手でテキストを置けば merge-manual.mjs が取り込む。
 
-import { mkdir, readFile, writeFile, access } from "node:fs/promises";
+import { mkdir, writeFile, access } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { parse } from "node-html-parser";
 import { fetchPolite, isAllowed } from "./web-fetch-lib.mjs";
+import { ROOT, loadMaster, parseTarget } from "./masters.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUT_DIR = path.join(ROOT, "data/raw_web");
 
 const MAX_FOLLOW = 30; // 1つの一覧ページから辿る記事数の上限
@@ -27,10 +26,14 @@ const DROP_SELECTOR = "script,style,nav,header,footer,aside,form,noscript,iframe
 // 本文が入っていそうな領域。上から順に試す
 const MAIN_SELECTORS = ["article", "main", "#main", ".entry-content", ".post-content", "#content", ".content"];
 
+// 政党サイトは一覧ページの配下が深く、議員サイトより辿る先が多い。
+const MAX_FOLLOW_PARTY = 60;
+
 function parseArgs(argv) {
-  const args = { only: null, force: false };
+  const args = { target: "politicians", only: null, force: false };
   for (const a of argv.slice(2)) {
     if (a === "--force") args.force = true;
+    else if (a.startsWith("--target=")) args.target = parseTarget(a.slice(9));
     else if (a.startsWith("--only=")) args.only = a.slice(7).split(",").map((s) => s.trim());
     else throw new Error(`不明な引数: ${a}`);
   }
@@ -70,8 +73,14 @@ function extractText(html) {
 const NOT_ARTICLE = /\.(jpe?g|png|gif|webp|svg|pdf|zip|mp[34]|docx?|xlsx?|pptx?)$/i;
 const NOT_ARTICLE_PATH = /\/wp-content\/|\/wp-json\/|\/feed\/?$|\/tag\/|\/author\/|\/page\/\d+/i;
 
-/** 一覧ページから記事のリンクを集める。日付を含むパスか、一覧ページ配下のものを記事とみなす */
-function findArticleLinks(html, baseUrl) {
+/**
+ * 一覧ページから記事のリンクを集める。日付を含むパスか、一覧ページ配下のものを記事とみなす。
+ *
+ * `followDated: false` は政党サイト向け。政党の一覧ページからは日付付きのお知らせ
+ * （街頭演説の告知、公認候補の発表）が大量に出てきて、そのほとんどが価値含意なしになる。
+ * 公約を読みたいだけなので、一覧ページの配下だけを辿る。
+ */
+function findArticleLinks(html, baseUrl, { maxFollow = MAX_FOLLOW, followDated = true } = {}) {
   const root = parse(html);
   const base = new URL(baseUrl);
   const out = new Set();
@@ -88,11 +97,12 @@ function findArticleLinks(html, baseUrl) {
     u.hash = "";
     if (u.href === base.href) continue;
     if (NOT_ARTICLE.test(u.pathname) || NOT_ARTICLE_PATH.test(u.pathname)) continue;
-    const isDated = /\/\d{4}\/\d{2}\//.test(u.pathname) || /\/\d{4,}\/?$/.test(u.pathname);
+    const isDated = followDated
+      && (/\/\d{4}\/\d{2}\//.test(u.pathname) || /\/\d{4,}\/?$/.test(u.pathname));
     const isChild = u.pathname.startsWith(base.pathname) && u.pathname !== base.pathname;
     if (isDated || isChild) out.add(u.href);
   }
-  return [...out].slice(0, MAX_FOLLOW);
+  return [...out].slice(0, maxFollow);
 }
 
 async function exists(p) {
@@ -106,23 +116,23 @@ async function exists(p) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const master = JSON.parse(await readFile(path.join(ROOT, "scripts/kokkai/politicians.json"), "utf8"));
+  const master = await loadMaster(args.target);
   await mkdir(OUT_DIR, { recursive: true });
 
-  const targets = master.politicians.filter((p) => !args.only || args.only.includes(p.speaker_id));
+  const targets = master.entries.filter((e) => !args.only || args.only.includes(e.id));
 
   for (const p of targets) {
-    const outPath = path.join(OUT_DIR, `${p.speaker_id}.jsonl`);
+    const outPath = path.join(OUT_DIR, `${p.id}.jsonl`);
     if (!args.force && (await exists(outPath))) {
-      console.log(`skip  ${p.speaker_id} ${p.name}（既存。取り直すなら --force）`);
+      console.log(`skip  ${p.id} ${p.name}（既存。取り直すなら --force）`);
       continue;
     }
     if (!p.web_sources || p.web_sources.length === 0) {
-      console.log(`--    ${p.speaker_id} ${p.name}: web_sources なし${p.web_note ? `（${p.web_note}）` : ""}`);
+      console.log(`--    ${p.id} ${p.name}: web_sources なし${p.web_note ? `（${p.web_note}）` : ""}`);
       continue;
     }
 
-    console.log(`fetch ${p.speaker_id} ${p.name}`);
+    console.log(`fetch ${p.id} ${p.name}`);
     const docs = [];
     const seen = new Set();
 
@@ -151,9 +161,13 @@ async function main() {
         const { title, text } = extractText(html);
         if (text.length >= MIN_CHARS) {
           docs.push({
-            doc_id: `${p.speaker_id}_web_${docs.length.toString().padStart(3, "0")}`,
-            speaker_id: p.speaker_id,
+            doc_id: `${p.id}_web_${docs.length.toString().padStart(3, "0")}`,
+            // ★政党でも列名は speaker_id / politician_name のままにする。
+            //   後段（preprocess → utterances → D1）が同じ経路を通るため。
+            //   政党のときは speaker_id が party_id、politician_name が党名になる。
+            speaker_id: p.id,
             politician_name: p.name,
+            entity_kind: master.kind, // politician | party
             source_kind: "web",
             url,
             site_label: label,
@@ -165,7 +179,9 @@ async function main() {
         }
 
         if (src.follow && depth === 0) {
-          for (const link of findArticleLinks(html, url)) {
+          const isParty = master.kind === "party";
+          const options = { maxFollow: isParty ? MAX_FOLLOW_PARTY : MAX_FOLLOW, followDated: !isParty };
+          for (const link of findArticleLinks(html, url, options)) {
             if (!seen.has(link)) queue.push({ url: link, label, depth: 1 });
           }
         }

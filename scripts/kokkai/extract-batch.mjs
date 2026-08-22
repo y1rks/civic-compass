@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // 本番のフレーム抽出。data/clean/*.jsonl → data/utterances.jsonl
 //
-//   node scripts/kokkai/extract-batch.mjs [--limit-per-politician=500] [--concurrency=12]
+//   node scripts/kokkai/extract-batch.mjs [--limit-per-target=500] [--concurrency=12]
 //                                         [--only=P00001,P00012] [--dry-run]
+//
+// --target=parties は政党の公約が対象。出力は data/utterances-party.jsonl に分ける。
+// 議員の資産（data/utterances.jsonl）と混ぜないためで、集計時に別々に読める。
 //
 // 17時間級の長時間実行になるので、次の3つを前提に作ってある。
 //   1. 途中で止まる ── 処理済みは出力ファイルから復元してスキップする（何度でも再開できる）
@@ -14,23 +17,31 @@
 
 import { readFile, writeFile, appendFile, mkdir, access } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { runStructured, EXTRACT_SCHEMA, SEGMENT_SCHEMA, DEFAULT_MODEL } from "./workers-ai.mjs";
 import { alignSegments, alignEvidence } from "./align.mjs";
+import { ROOT, loadMaster, parseTarget } from "./masters.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const OUT = path.join(ROOT, "data/utterances.jsonl");
-const PROGRESS = path.join(ROOT, "data/extract-progress.json");
+const OUT_BY_TARGET = {
+  politicians: path.join(ROOT, "data/utterances.jsonl"),
+  parties: path.join(ROOT, "data/utterances-party.jsonl"),
+};
+const PROGRESS_BY_TARGET = {
+  politicians: path.join(ROOT, "data/extract-progress.json"),
+  parties: path.join(ROOT, "data/extract-progress-party.json"),
+};
 
 const MIN_SEGMENT_CHARS = 100;
 const EXTRACT_VERSION = "extract-v1.0-glm";
 const SEGMENTATION_VERSION = "seg-v1.0-glm";
 
 function parseArgs(argv) {
-  const args = { limit: 500, concurrency: 12, only: null, dryRun: false, model: DEFAULT_MODEL };
+  const args = { target: "politicians", limit: 500, concurrency: 12, only: null, dryRun: false, model: DEFAULT_MODEL };
   for (const a of argv.slice(2)) {
     if (a === "--dry-run") args.dryRun = true;
+    else if (a.startsWith("--target=")) args.target = parseTarget(a.slice(9));
+    // --limit-per-politician は以前の名前。過去のコマンドがそのまま動くよう残している。
     else if (a.startsWith("--limit-per-politician=")) args.limit = Number(a.slice(23));
+    else if (a.startsWith("--limit-per-target=")) args.limit = Number(a.slice(19));
     else if (a.startsWith("--concurrency=")) args.concurrency = Number(a.slice(14));
     else if (a.startsWith("--only=")) args.only = a.slice(7).split(",").map((s) => s.trim());
     else if (a.startsWith("--model=")) args.model = a.slice(8);
@@ -49,10 +60,10 @@ async function exists(p) {
 }
 
 /** すでに抽出済みの block_id を出力ファイルから復元する（途中再開のため） */
-async function loadDone() {
-  if (!(await exists(OUT))) return new Set();
+async function loadDone(out) {
+  if (!(await exists(out))) return new Set();
   const done = new Set();
-  const text = await readFile(OUT, "utf8");
+  const text = await readFile(out, "utf8");
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
     try {
@@ -65,16 +76,18 @@ async function loadDone() {
 }
 
 /**
- * 抽出対象を選ぶ。議員ごとに「重みの高い順 → 新しい順」で上限まで。
+ * 抽出対象を選ぶ。対象ごとに「重みの高い順 → 新しい順」で上限まで。
  * 上限を上げて再実行したとき、既存分の順序が変わらないよう決定的に並べる。
+ *
+ * 政党の公約は重みがすべて 1.0 で日付も持たないものが多いので、実質 block_id 順になる。
  */
 async function selectTargets(master, args) {
   const targets = [];
-  for (const p of master.politicians) {
-    if (p.active === false) continue;
-    if (args.only && !args.only.includes(p.speaker_id)) continue;
+  for (const p of master.entries) {
+    if (!p.active) continue;
+    if (args.only && !args.only.includes(p.id)) continue;
 
-    const file = path.join(ROOT, `data/clean/${p.speaker_id}.jsonl`);
+    const file = path.join(ROOT, `data/clean/${p.id}.jsonl`);
     if (!(await exists(file))) continue;
 
     const rows = (await readFile(file, "utf8"))
@@ -128,6 +141,8 @@ async function processBlock(block, prompts, model) {
       source: { ...block.source, block_id: block.block_id, segment_index: i, char_range: seg.char_range },
       speaker_id: block.speaker_id,
       politician_name: block.politician_name,
+      // politician | party。政党の公約から作ったレコードを集計側で見分けるために持つ。
+      entity_kind: block.entity_kind ?? "politician",
       source_kind: block.source_kind,
       date: block.date,
       speech_type: block.speech_type,
@@ -160,7 +175,9 @@ function fmtDuration(ms) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const master = JSON.parse(await readFile(path.join(ROOT, "scripts/kokkai/politicians.json"), "utf8"));
+  const master = await loadMaster(args.target);
+  const OUT = OUT_BY_TARGET[args.target];
+  const PROGRESS = PROGRESS_BY_TARGET[args.target];
   const [segment, extract] = await Promise.all([
     readFile(path.join(ROOT, "scripts/kokkai/prompts/segment.md"), "utf8"),
     readFile(path.join(ROOT, "scripts/kokkai/prompts/extract.md"), "utf8"),
@@ -169,14 +186,15 @@ async function main() {
   await mkdir(path.dirname(OUT), { recursive: true });
 
   const all = await selectTargets(master, args);
-  const done = await loadDone();
+  const done = await loadDone(OUT);
   const todo = all.filter((b) => !done.has(b.block_id));
 
   const byPolitician = {};
   for (const b of all) byPolitician[b.politician_name] = (byPolitician[b.politician_name] ?? 0) + 1;
 
   console.log(`モデル      ${args.model}`);
-  console.log(`議員あたり  最大${args.limit}ブロック`);
+  console.log(`対象        ${master.kind === "party" ? "政党の公約" : "議員の発言"}`);
+  console.log(`1件あたり   最大${args.limit}ブロック`);
   console.log(`対象        ${all.length}ブロック（処理済み ${done.size} / 残り ${todo.length}）`);
   console.log(`内訳        ${Object.entries(byPolitician).map(([k, v]) => `${k}${v}`).join(" / ")}`);
   // 実測 約26リクエスト/分。1ブロックあたり 分割1 + 抽出n回
@@ -235,10 +253,10 @@ async function main() {
   await Promise.all(Array.from({ length: Math.min(args.concurrency, todo.length) }, worker));
 
   console.log(`\n\n完了  成功${ok} 失敗${fail}  ${segCount}セグメント  ${fmtDuration(Date.now() - started)}`);
-  console.log(`出力  data/utterances.jsonl`);
+  console.log(`出力  ${path.relative(ROOT, OUT)}`);
   if (fail > 0) {
     console.log(`\n失敗したブロックは再実行すれば処理されます（処理済みはスキップされます）`);
-    console.log(`失敗の記録: data/extract-progress.json`);
+    console.log(`失敗の記録: ${path.relative(ROOT, PROGRESS)}`);
   }
 }
 

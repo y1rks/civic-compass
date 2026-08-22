@@ -11,6 +11,7 @@
 //   profile:{speaker_id}           議員プロファイル。C のマッチ計算で全件読む
 //   profile:evidence:{speaker_id}  evidence。表示する議員の分だけ読む
 //   profile:party:{党名}            政党プロファイル
+//   profile:party:evidence:{党名}   政党プロファイルの根拠（公約の出典）
 //   cellidx:{frame|target|role}    セル→議員の逆引き。B のポップアップで使う
 //
 // KV は put で上書きされるので、入れ直しに特別な手当ては要らない。
@@ -42,9 +43,16 @@ for (const f of (await readdir(DIR)).filter((n) => /^profile_P\d+\.json$/.test(n
 }
 
 // --- 政党プロファイル ---
-for (const f of await readdir(path.join(DIR, "party"))) {
+// party/ の下には evidence/ ディレクトリもあるので、.json だけを拾う
+for (const f of (await readdir(path.join(DIR, "party"))).filter((n) => n.endsWith(".json"))) {
   const party = JSON.parse(await readFile(path.join(DIR, "party", f), "utf8"));
   add(`profile:party:${party.party}`, party);
+}
+
+// --- 政党の evidence（公約の出典）。議員と同じく、表示する党の分だけ読む想定 ---
+for (const f of (await readdir(path.join(DIR, "party/evidence"))).filter((n) => n.endsWith(".json"))) {
+  const evidence = JSON.parse(await readFile(path.join(DIR, "party/evidence", f), "utf8"));
+  add(`profile:party:evidence:${evidence.party}`, evidence);
 }
 
 // --- セル逆引き ---
@@ -65,9 +73,11 @@ for (const e of entries) {
     ? "cellidx:"
     : e.key.startsWith("profile:evidence:")
       ? "profile:evidence:"
-      : e.key.startsWith("profile:party:")
-        ? "profile:party:"
-        : "profile:";
+      : e.key.startsWith("profile:party:evidence:")
+        ? "profile:party:evidence:"
+        : e.key.startsWith("profile:party:")
+          ? "profile:party:"
+          : "profile:";
   const bytes = Buffer.byteLength(e.value, "utf8");
   byPrefix[p] = (byPrefix[p] ?? 0) + 1;
   total += bytes;

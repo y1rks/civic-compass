@@ -3,6 +3,10 @@
 //
 //   node scripts/kokkai/export-d1.mjs [--in=data/pilot/utterances.jsonl] [--out=data/pilot/utterances.sql]
 //
+// 政党の公約も同じ表に入れます（entity_kind = 'party'）。
+//   node scripts/kokkai/export-d1.mjs --in=data/utterances-party.jsonl --out=data/utterances-party.sql
+// ★このとき --truncate を付けないこと。議員の抽出結果まで消えます。
+//
 // 適用:
 //   wrangler d1 execute civic-compass-db --local  --file=data/pilot/utterances.sql   # ローカル
 //   wrangler d1 execute civic-compass-db --remote --file=data/pilot/utterances.sql   # 本番
@@ -86,6 +90,8 @@ async function main() {
       utterance_id: u.utterance_id,
       speaker_id: u.speaker_id,
       politician_name: u.politician_name,
+      // 政党の公約から作ったレコードを見分けるための列。既存データは politician。
+      entity_kind: u.entity_kind ?? "politician",
       source_kind: u.source_kind,
       meeting_id: u.source.meeting_id ?? null,
       speech_id: u.source.speech_id ?? null,

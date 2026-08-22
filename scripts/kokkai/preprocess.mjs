@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // data/raw/*.jsonl（APIの生レスポンス）を、LLMの segment 分割・抽出にかけられる形に整える。
 //
-//   node scripts/kokkai/preprocess.mjs [--only=P00001,P00007]
+//   node scripts/kokkai/preprocess.mjs [--target=politicians|parties] [--only=P00001,P00007]
 //
-// 出力は data/clean/{speaker_id}.jsonl。
+// --target=parties は政党の公約（data/raw_web/{party_id}.jsonl）が対象。
+// 国会会議録にあたるものが無いので、公式サイトと手動投入だけを読む。
+//
+// 出力は data/clean/{id}.jsonl。
 // 除外したブロックも excluded_reason 付きで残す。取りこぼしの監査に必要なため捨てない。
 //
 // ここでやること（すべて機械的処理。LLM は使わない）
@@ -17,9 +20,8 @@
 
 import { mkdir, readFile, writeFile, readdir, access } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { ROOT, loadMaster, parseTarget } from "./masters.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RAW_DIR = path.join(ROOT, "data/raw");
 const RAW_WEB_DIR = path.join(ROOT, "data/raw_web");
 const MANUAL_DIR = path.join(ROOT, "data/manual");
@@ -64,9 +66,10 @@ const PROCEDURAL_PATTERNS = [
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 
 function parseArgs(argv) {
-  const args = { only: null };
+  const args = { target: "politicians", only: null };
   for (const a of argv.slice(2)) {
-    if (a.startsWith("--only=")) args.only = a.slice(7).split(",").map((s) => s.trim());
+    if (a.startsWith("--target=")) args.target = parseTarget(a.slice(9));
+    else if (a.startsWith("--only=")) args.only = a.slice(7).split(",").map((s) => s.trim());
     else throw new Error(`不明な引数: ${a}`);
   }
   return args;
@@ -206,20 +209,31 @@ function stripOtherSpeakers(text, politicianName) {
   return { text: kept.join("\n").replace(/\n{3,}/g, "\n\n").trim(), removed };
 }
 
-/** 公式サイトから取得した1ページ、または手動投入テキストを clean レコードに変換する */
-function webDocToRecords(doc, politician, index) {
+/**
+ * 公式サイトから取得した1ページ、または手動投入テキストを clean レコードに変換する。
+ *
+ * 政党の公約もここを通る。違いは2つだけ。
+ *   - 議事録転載の除去（stripOtherSpeakers）をしない。政党サイトに他人の発言は載らず、
+ *     党名でマーカーを照合すると本文を丸ごと落としかねないため。
+ *   - party_at_time が自分の党名になる。
+ */
+function webDocToRecords(doc, entity, index, kind = "politician") {
   // URL に日付が入っていれば発言日として使う（日付をパスに持つ政策ブログなど）
   const m = /\/(20\d\d)\/(\d{2})(?:\/(\d{2}))?\//.exec(doc.url ?? "");
   const date = m ? `${m[1]}-${m[2]}-${m[3] ?? "01"}` : null;
 
-  const { text: ownText, removed } = stripOtherSpeakers(doc.text, politician.name);
+  const { text: ownText, removed } = kind === "party"
+    ? { text: doc.text, removed: 0 }
+    : stripOtherSpeakers(doc.text, entity.name);
   const hasHeadings = /^#{1,6}\s+/m.test(ownText);
   const sections = hasHeadings ? splitByHeading(ownText) : splitByParagraph(ownText);
 
   return sections.map((sec, i) => ({
-    block_id: `${politician.speaker_id}_${doc.source_kind}${index.toString().padStart(3, "0")}_s${i.toString().padStart(2, "0")}`,
-    speaker_id: politician.speaker_id,
-    politician_name: politician.name,
+    block_id: `${entity.id}_${doc.source_kind}${index.toString().padStart(3, "0")}_s${i.toString().padStart(2, "0")}`,
+    // ★政党でも列名は speaker_id / politician_name のまま（fetch-web.mjs と同じ理由）。
+    speaker_id: entity.id,
+    politician_name: entity.name,
+    entity_kind: kind, // politician | party
     source_kind: doc.source_kind, // "web" | "manual"
 
     source: {
@@ -236,7 +250,7 @@ function webDocToRecords(doc, politician, index) {
     speech_type: "選挙公約",
     answer_context: "spontaneous",
     weight: ANSWER_WEIGHT.spontaneous,
-    party_at_time: politician.party,
+    party_at_time: entity.party,
     position_at_time: null,
     speaker_role: null,
 
@@ -259,9 +273,10 @@ function toCleanRecord(rec, politician) {
   const answerContext = classifyAnswerContext(rec, speechType);
 
   return {
-    block_id: `${politician.speaker_id}_${rec.speechID}`,
-    speaker_id: politician.speaker_id,
+    block_id: `${politician.id}_${rec.speechID}`,
+    speaker_id: politician.id,
     politician_name: politician.name,
+    entity_kind: "politician",
     source_kind: "kokkai",
 
     source: {
@@ -308,30 +323,31 @@ async function readIfExists(p) {
 }
 
 /** 公式サイト（data/raw_web）と手動投入（data/manual）を読んで clean レコードにする */
-async function loadWebRecords(politician) {
+async function loadWebRecords(entity, kind = "politician") {
   const out = [];
 
-  const webRaw = await readIfExists(path.join(RAW_WEB_DIR, `${politician.speaker_id}.jsonl`));
+  const webRaw = await readIfExists(path.join(RAW_WEB_DIR, `${entity.id}.jsonl`));
   if (webRaw) {
     for (const [i, line] of webRaw.split("\n").filter(Boolean).entries()) {
-      out.push(...webDocToRecords(JSON.parse(line), politician, i));
+      out.push(...webDocToRecords(JSON.parse(line), entity, i, kind));
     }
   }
 
   // 手動投入。robots.txt で取得しないサイトや、SPA で本文が取れないサイトの受け皿。
-  const manual = await readIfExists(path.join(MANUAL_DIR, `${politician.speaker_id}.md`));
+  const manual = await readIfExists(path.join(MANUAL_DIR, `${entity.id}.md`));
   if (manual) {
     out.push(
       ...webDocToRecords(
         {
           source_kind: "manual",
-          url: politician.website,
+          url: entity.website,
           site_label: "公式サイト（手動投入）",
           title: null,
           text: manual,
         },
-        politician,
+        entity,
         0,
+        kind,
       ),
     );
   }
@@ -341,26 +357,41 @@ async function loadWebRecords(politician) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const master = JSON.parse(await readFile(path.join(ROOT, "scripts/kokkai/politicians.json"), "utf8"));
+  const master = await loadMaster(args.target);
+  const isParty = master.kind === "party";
   await mkdir(CLEAN_DIR, { recursive: true });
   const window = master.extract_window;
 
-  const available = new Set(
-    (await readdir(RAW_DIR)).filter((f) => f.endsWith(".jsonl")).map((f) => f.replace(".jsonl", "")),
+  // 国会会議録があるのは議員だけ。政党は公式サイトと手動投入しか持たない。
+  const available = isParty
+    ? null
+    : new Set((await readdir(RAW_DIR)).filter((f) => f.endsWith(".jsonl")).map((f) => f.replace(".jsonl", "")));
+
+  const targets = master.entries.filter(
+    (e) => (isParty || available.has(e.id)) && (!args.only || args.only.includes(e.id)),
   );
-  const targets = master.politicians.filter(
-    (p) => available.has(p.speaker_id) && (!args.only || args.only.includes(p.speaker_id)),
-  );
-  if (targets.length === 0) throw new Error("処理対象がありません。先に collect.mjs を実行してください");
+  if (targets.length === 0) {
+    throw new Error(isParty
+      ? "処理対象がありません。先に fetch-web.mjs --target=parties を実行してください"
+      : "処理対象がありません。先に collect.mjs を実行してください");
+  }
 
   const report = [];
 
   for (const p of targets) {
-    const lines = (await readFile(path.join(RAW_DIR, `${p.speaker_id}.jsonl`), "utf8")).split("\n").filter(Boolean);
-    const records = lines.map((l) => toCleanRecord(JSON.parse(l), p));
-    records.push(...(await loadWebRecords(p)));
+    const records = [];
+    if (!isParty) {
+      const lines = (await readFile(path.join(RAW_DIR, `${p.id}.jsonl`), "utf8")).split("\n").filter(Boolean);
+      records.push(...lines.map((l) => toCleanRecord(JSON.parse(l), p)));
+    }
+    records.push(...(await loadWebRecords(p, master.kind)));
 
-    // 抽出に使う期間を全議員で揃える。日付が読めない文書（政策ページ等）は現在の主張として残す。
+    if (records.length === 0) {
+      console.log(`--    ${p.id} ${p.name}: 生データがありません（fetch-web.mjs を先に実行）`);
+      continue;
+    }
+
+    // 抽出に使う期間を全対象で揃える。日付が読めない文書（政策ページ等）は現在の主張として残す。
     const from = p.extract_from ?? window.from;
     const to = p.extract_to ?? window.to;
     for (const r of records) {
@@ -369,7 +400,7 @@ async function main() {
     }
 
     await writeFile(
-      path.join(CLEAN_DIR, `${p.speaker_id}.jsonl`),
+      path.join(CLEAN_DIR, `${p.id}.jsonl`),
       records.map((r) => JSON.stringify(r)).join("\n") + "\n",
       "utf8",
     );
@@ -384,18 +415,20 @@ async function main() {
     const dates = kokkai.map((r) => r.date).sort();
 
     report.push({
-      speaker_id: p.speaker_id,
+      // 政党のときは speaker_id に party_id が入る（clean レコードと同じ扱い）
+      speaker_id: p.id,
       name: p.name,
       party: p.party,
-      // 現職でなくなった議員。データは残すが、プロファイル構築とマッチ候補からは外す
-      active: p.active !== false,
-      inactive_reason: p.inactive_reason ?? null,
+      entity_kind: master.kind,
+      // 現職でなくなった議員・活動していない党。データは残すが、プロファイル構築からは外す
+      active: p.active,
+      inactive_reason: p.raw.inactive_reason ?? null,
       n_raw: records.length,
       n_kept: kept.length,
       excluded: reasons,
       kokkai: {
         n: kokkai.length,
-        // 重み付きの実効的なデータ量。単純な件数より議員間の比較に使える
+        // 重み付きの実効的なデータ量。単純な件数より対象間の比較に使える
         weighted_n: Math.round(sum(kokkai.map((r) => r.weight)) * 10) / 10,
         chars: sum(kokkai.map((r) => r.char_length)),
         by_answer_context: {
@@ -417,10 +450,31 @@ async function main() {
     });
   }
 
-  await writeFile(path.join(ROOT, "data/preprocess-report.json"), JSON.stringify(report, null, 2) + "\n", "utf8");
+  const reportPath = isParty ? "data/preprocess-report-party.json" : "data/preprocess-report.json";
+  await writeFile(path.join(ROOT, reportPath), JSON.stringify(report, null, 2) + "\n", "utf8");
 
   const pad = (s, n) => String(s).padEnd(n, " ");
   const w = (name) => 12 - (name.length - [...name].length);
+
+  if (isParty) {
+    console.log([pad("", 6), pad("政党", 16), pad("ブロック", 9), pad("採用", 6), "字数"].join(""));
+    for (const r of report) {
+      console.log([
+        pad(r.speaker_id, 6),
+        pad(r.name, 16 - (r.name.length - [...r.name].length)),
+        pad(r.n_raw, 9),
+        pad(r.n_kept, 6),
+        r.web.chars.toLocaleString(),
+      ].join(""));
+    }
+    console.log(
+      `\n政党 ${report.length}党  抽出対象 ${sum(report.map((r) => r.n_kept))}ブロック / ` +
+        `${sum(report.map((r) => r.web.chars)).toLocaleString()}字`,
+    );
+    console.log(`詳細: ${reportPath}`);
+    return;
+  }
+
   console.log(
     [pad("", 5), pad("議員", 12), pad("自発", 6), pad("党首", 6), pad("予算委", 7), pad("各省委", 7), pad("重み付n", 8), pad("国会字数", 11), pad("web", 5), "web字数"].join(""),
   );
@@ -450,7 +504,7 @@ async function main() {
       `（国会 ${sum(act.map((r) => r.kokkai.n))} + web/手動 ${sum(act.map((r) => r.web.n))}）` +
       ` / 国会の重み付き ${Math.round(sum(act.map((r) => r.kokkai.weighted_n)))}`,
   );
-  console.log(`詳細: data/preprocess-report.json`);
+  console.log(`詳細: ${reportPath}`);
 }
 
 main().catch((e) => {

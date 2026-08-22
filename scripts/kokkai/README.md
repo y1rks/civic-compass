@@ -37,6 +37,25 @@ node scripts/kokkai/discover-web.mjs                    # 政策ページのURL�
 node scripts/kokkai/preprocess.mjs
 ```
 
+### 政党の公約（政党プロファイル用）
+
+議員と同じスクリプトを `--target=parties` で走らせます。対象は
+**国会に議席を持つ全政党**（`parties.json`）で、国会会議録にあたるものがないので
+公式サイトと手動投入だけを読みます。
+
+```bash
+node scripts/kokkai/discover-web.mjs --target=parties           # 公約ページのURL候補
+node scripts/kokkai/fetch-web.mjs   --target=parties [--force]  # 公約ページの本文を取得
+node scripts/kokkai/preprocess.mjs  --target=parties            # data/clean/PT01.jsonl
+node scripts/kokkai/extract-batch.mjs --target=parties --concurrency=8
+                                                                # → data/utterances-party.jsonl
+node scripts/kokkai/build-profiles.mjs                          # 議員と政党をまとめて作り直す
+```
+
+出力ファイルは議員と分けています（`data/utterances-party.jsonl`）。
+`data/raw_web/` と `data/clean/` は `speaker_id` と `party_id` の採番空間が
+分かれている（`P00001` と `PT01`）ので同じディレクトリを共有します。
+
 ## 現在のデータ量（現職15人分）
 
 | ソース | 件数 |
@@ -158,11 +177,15 @@ full.slice(s, e)   // → 根拠にした箇所
 | ファイル | 役割 |
 |---|---|
 | `politicians.json` | 対象議員マスタ。`speaker_id` は【1】【2】のキーなので採番後は変更しない |
+| `parties.json` | 対象政党マスタ（国会に議席を持つ全政党）。`party_id` も同様に変更しない |
+| `masters.mjs` | 上の2つを同じ形で読む層。各スクリプトの `--target=politicians\|parties` の実体 |
 | `collect.mjs` | 国会会議録APIから収集。1000件制限は期間の再帰二分割で回避 |
 | `discover-web.mjs` | 公式サイトから政策ページのURL候補を探す（結果は目視で確定させる） |
 | `fetch-web.mjs` | 公式サイトの本文を取得。robots.txt を確認し、間隔2秒 |
 | `web-fetch-lib.mjs` | robots.txt の解釈とクロール間隔の共通処理 |
 | `preprocess.mjs` | 3ソースを統合し、正規化・フィルタ・メタ付与。`data/preprocess-report.json` に統計を出力 |
+| `extract-batch.mjs` | 本番のフレーム抽出。途中再開・レート制限待ち・上限の引き上げに対応 |
+| `build-profiles.mjs` | 【2】profile / evidence / 政党プロファイル / cellidx を生成 |
 | `prompts/segment.md` | segment 分割プロンプト。**価値判定は一切させない** |
 | `prompts/extract.md` | フレーム抽出プロンプト。語彙定義と few-shot 3例 |
 | `llm.mjs` | LLM 呼び出し。Zod スキーマで出力を強制、プロンプトキャッシュ、リトライ |

@@ -33,8 +33,21 @@ export const utterances = sqliteTable(
   "utterances",
   {
     utteranceId: text("utterance_id").primaryKey(),
+    /**
+     * 議員は speaker_id（P00001）、政党は party_id（PT01）が入ります。
+     * どちらの主体かは entity_kind を見てください。
+     */
     speakerId: text("speaker_id").notNull(),
+    /** 議員なら氏名、政党なら党名。 */
     politicianName: text("politician_name").notNull(),
+    /**
+     * politician | party。
+     *
+     * 政党の公約も議員の発言とまったく同じ経路（分割 → 抽出）を通るので同じ表に入れます。
+     * 集計するときは必ずどちらかに絞ってください。混ぜると、党の公約が議員個人の
+     * プロファイルに入り込みます。
+     */
+    entityKind: text("entity_kind", { enum: ["politician", "party"] }).notNull().default("politician"),
     /** kokkai | web | manual */
     sourceKind: text("source_kind").notNull(),
 
