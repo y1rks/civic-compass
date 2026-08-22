@@ -13,6 +13,7 @@ import type {
   ProfileMatchesResponse, SavedAnswer, UserProfileCell,
 } from "../lib/types";
 import { DEFAULT_INTEREST, interestLabel, isInterested } from "../lib/interest";
+import { analysisDepth } from "../lib/analysis-depth";
 import { OpinionSheet } from "./opinion-sheet";
 import { ProfileTrends } from "./profile-trends";
 import { ProfileMatches } from "./profile-matches";
@@ -253,7 +254,7 @@ export default function HomePage() {
           onSave={handleSave}
         />
       )}
-      {screen === "profile" && <Profile matchResult={profileMatchResult} matchesStatus={profileMatchesStatus} savedCount={Object.keys(saved).length} cells={profileCells} cellsStatus={profileCellsStatus} />}
+      {screen === "profile" && <Profile matchResult={profileMatchResult} matchesStatus={profileMatchesStatus} savedCount={Object.keys(saved).length} depth={analysisDepth(articles, saved)} cells={profileCells} cellsStatus={profileCellsStatus} />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
       {modalOpen && selected && (
         <PerspectiveModal
@@ -563,12 +564,15 @@ function Profile({
   matchResult,
   matchesStatus,
   savedCount,
+  depth,
   cells,
   cellsStatus,
 }: {
   matchResult: ProfileMatchesResponse | null;
   matchesStatus: "loading" | "ready" | "error";
   savedCount: number;
+  /** 分析の深さ（0〜100）。算出は lib/analysis-depth.ts */
+  depth: number;
   cells: UserProfileCell[];
   cellsStatus: "loading" | "ready" | "error";
 }) {
@@ -580,7 +584,7 @@ function Profile({
         <p>関心を保存するほど、マッチの精度が高まります。</p>
         <div className="profile-stats">
           <div><strong>{savedCount}</strong><span>回答した記事</span></div>
-          <div><strong>{savedCount === 0 ? 0 : Math.min(86, 58 + savedCount * 7)}<small>%</small></strong><span>分析の深さ</span></div>
+          <div><strong>{depth}<small>%</small></strong><span>分析の深さ</span></div>
         </div>
       </header>
       <section className="profile-content">
