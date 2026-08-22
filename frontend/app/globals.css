@@ -199,11 +199,12 @@ button { color:inherit; }
 .speaker-mention { margin:9px 0 0; font-size:10px; line-height:1.7; color:#7b8987; }
 /* 答弁の原文は畳んでおき、開いた人にだけ出します。まず「誰が・どう扱ったか」を
    見比べられるようにするためで、開閉は <details> がやるので JS は要りません。 */
-.statement-fold { margin-top:8px; }
-.statement-fold>summary { list-style:none; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px; padding:9px 11px; border-radius:10px; background:#f1efe7; color:var(--green); font-size:10px; font-weight:800; transition:background .15s; }
+.statement-fold { margin-top:2px; }
+/* 枠で囲わず、カードの白地にそのまま置きます。inline-flex なので
+   当たり判定は文字の幅ぶんだけ。負のマージンで文字列の左端を揃えています。 */
+.statement-fold>summary { list-style:none; cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:6px; margin-left:-6px; padding:8px 6px; color:var(--green); font-size:10px; font-weight:800; transition:opacity .15s; }
 .statement-fold>summary::-webkit-details-marker { display:none; }
-.statement-fold>summary:hover { background:#e9e6da; }
-.statement-fold[open]>summary { border-radius:10px 10px 0 0; }
+.statement-fold>summary:hover { opacity:.65; }
 .fold-count { color:#8a9694; font-weight:700; }
 /* 閉じているとき右向き（▸）、開くと下向き（▼）。 */
 .fold-chevron { flex:0 0 auto; transition:transform .2s; }
