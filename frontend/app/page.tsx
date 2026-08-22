@@ -413,7 +413,7 @@ function PerspectiveBlock({ perspective, index }: { perspective: Perspective; in
   );
 }
 
-/** 同じ議員が role 違いで2枚出ることがあります（守る対象としても脅威としても語った場合）。 */
+/** 同じ議員が role 違いで2枚出ることがあります（守る立場でも問題視する立場でも語った場合）。 */
 function SpeakerCard({ politician, target }: { politician: PerspectivePolitician; target: string }) {
   const alignment = ALIGNMENT_LABEL[politician.alignment];
 
@@ -430,7 +430,7 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
         {alignment && <span className={`alignment-chip ${politician.alignment}`}>{alignment}</span>}
       </div>
 
-      {/* ★role は消さないこと。「守る対象として」と「問題の原因として」は正反対の思想で、
+      {/* ★role は消さないこと。「守る立場」と「問題視する立場」は正反対の思想で、
           畳むと外国人・移民を支援対象として語る議員と脅威として語る議員が同じに見えます。 */}
       <p className={`speaker-role ${politician.role}`}>{target}を{politician.roleLabel}</p>
       <p className="speaker-stance">{politician.stanceText}</p>

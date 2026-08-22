@@ -91,7 +91,7 @@ export type PerspectivePolitician = {
    * カードから消してはいけません（docs/design-constraints.md「禁止事項」）。
    */
   role: string;
-  /** 「守る対象として」/「問題の原因として」 */
+  /** 「守る立場」/「問題視する立場」 */
   roleLabel: string;
   /** −1〜+1。その価値を根拠として持ち出したか、優先順位で下に置いたか。 */
   score: number;

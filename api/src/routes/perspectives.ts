@@ -111,7 +111,14 @@ const cellKey = (cell: { frame: string; target: string; role: string }) =>
 /** 論点のキー。**逆引きはこちら**で、`role` の違う発言も同じ論点に集めます。 */
 const topicKey = (cell: { frame: string; target: string }) => `${cell.frame}|${cell.target}`;
 
-const roleLabel = (role: CellRole) => (role === "beneficiary" ? "守る対象として" : "問題の原因として");
+/**
+ * その対象をどう扱ったか。**語り手の見方**として書きます。
+ *
+ * `threat` を「問題の原因として」とは書きません。因果を主張しているのではなく、
+ * 「警戒すべきものとして語った」という意味だからです。守る対象として語る場合も
+ * その対象は論点そのものなので、「問題の原因」では向きが読み取れません。
+ */
+const roleLabel = (role: CellRole) => (role === "beneficiary" ? "守る立場" : "問題視する立場");
 
 /**
  * その議員がこのセルの価値をどう扱ったか。

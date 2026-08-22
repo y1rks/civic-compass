@@ -41,7 +41,7 @@ const cellIndex = {
     entry("P00002", "逆A", -0.55, 0.018),
     entry("P00007", "逆B", -0.60, 0.016),
   ],
-  // 同じ観点を「問題の原因として」語っている議員。role が違うので向きは比べられない。
+  // 同じ観点を「問題視する立場」で語っている議員。role が違うので立場は比べられない。
   "cellidx:care_harm|自然環境|threat": [
     entry("P00003", "脅威A", 1, 0.024),
   ],
@@ -149,8 +149,8 @@ test("どちらの立場の発言かをカードに出せる（role を畳まな
   const data = await response.json();
   const labels = new Map(data.perspectives[0].politicians.map((p) => [p.role, p.roleLabel]));
 
-  assert.equal(labels.get("beneficiary"), "守る対象として");
-  assert.equal(labels.get("threat"), "問題の原因として");
+  assert.equal(labels.get("beneficiary"), "守る立場");
+  assert.equal(labels.get("threat"), "問題視する立場");
 });
 
 test("両方の立場がそろう論点は3人まで", async () => {
