@@ -7,21 +7,33 @@ import { createElement } from "react";
 import { transform } from "esbuild";
 
 const ROOT = new URL("../../frontend/app/", import.meta.url);
+const compileInterest = async () => {
+  const out = new URL("../lib/interest.compiled.mjs", ROOT);
+  const source = await readFile(new URL("../lib/interest.ts", ROOT), "utf8");
+  const { code } = await transform(source, { loader: "ts", format: "esm" });
+  await writeFile(out, code);
+  return out;
+};
 const compile = async (name) => {
   const out = new URL(`./${name}.compiled.mjs`, ROOT);
   const source = await readFile(new URL(`./${name}.tsx`, ROOT), "utf8");
   const { code } = await transform(source, { loader: "tsx", format: "esm", jsx: "automatic" });
   // Node の ESM は拡張子なしの指定を解決できないので、変換後に補います。
-  // .ts はそのまま読めます（Node 22 の型ストリップ）。
+  // テストで読み込む TypeScript も ESM に変換し、Node の対応状況に依存させません。
   await writeFile(out, code
     .replaceAll('"./question-block"', '"./question-block.compiled.mjs"')
-    .replaceAll('"../lib/interest"', '"../lib/interest.ts"'));
+    .replaceAll('"../lib/interest"', '"../lib/interest.compiled.mjs"'));
   return out;
 };
+const interestUrl = await compileInterest();
 const qb = await compile("question-block");
 const sheetUrl = await compile("opinion-sheet");
 const { OpinionSheet } = await import(sheetUrl.href);
-test.after(async () => { await rm(qb, { force: true }); await rm(sheetUrl, { force: true }); });
+test.after(async () => {
+  await rm(interestUrl, { force: true });
+  await rm(qb, { force: true });
+  await rm(sheetUrl, { force: true });
+});
 
 const article = {
   id: "energy-2035", category: "環境", title: "t", summary: "s", body: [], image: "", source: "", publishedAt: "",
