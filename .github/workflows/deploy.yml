@@ -13,6 +13,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # ローカル（.nvmrc）と揃えること。22.18 未満だと .mjs から .ts を読めず
+  # （型ストリップが既定で有効になるのが 22.18）、テストが落ちます。
+  NODE_VERSION: "22.20.0"
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -20,7 +25,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.13.0
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - run: npm run lint
@@ -38,7 +43,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.13.0
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - name: Validate Cloudflare configuration

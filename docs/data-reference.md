@@ -1,27 +1,37 @@
 # データ仕様（D1 / KV）
 
-議員プロファイル構築バッチ（`scripts/kokkai/`）が生成し、D1 と KV に格納されているデータの仕様。
+D1 と KV に格納されているデータの仕様。
 設計の背景や「なぜそうしたか」は `docs/design-constraints.md` にある。ここでは
 **何が入っていて、どう読むか**に絞る。
 
 ## 全体像
 
+議員側とユーザー側で、同じ構造（生データ → 集計 → KV）を持つ。
+
 ```
-国会会議録API / 議員の公式サイト
-        ↓  収集・前処理・LLM抽出
-【1】utterances  ──→  D1     発言1セグメントごとの抽出結果。追記のみ・書き換え禁止
-        ↓  集計（何度でも作り直せる）
-【2】profile     ──→  KV     議員プロファイル。マッチ計算に使う
-    evidence     ──→  KV     根拠となった発言の原文。表示に使う
-    cellidx      ──→  KV     セル→議員の逆引き
+議員側                                  ユーザー側
+─────────────────────  ─────────────────────
+国会会議録API / 議員の公式サイト          記事の設問への回答
+        ↓ 収集・前処理・LLM抽出                  ↓ 意見の保存
+【1】utterances    ──→ D1              【3a】answers      ──→ D1
+        ↓ 集計（バッチ・何度でも再生成可）        ↓ 集計（保存のたび・同上）
+【2】profile       ──→ KV PROFILES      【3】profile:user  ──→ KV USER_PROFILES
+    evidence       ──→ KV PROFILES
+    cellidx        ──→ KV PROFILES
 ```
 
 | | 置き場 | バインディング | 用途 |
 |---|---|---|---|
-| utterances | D1 `civic-compass-db` | `DB` | 抽出結果の原本。プロファイルの再生成元 |
-| profile / evidence / cellidx | KV | `PROFILES` | API が読む。D1 は引かない |
+| 記事・設問・選択肢 | D1 `civic-compass-db` | `DB` | 画面に出す記事と、その争点 |
+| utterances | D1 | `DB` | 抽出結果の原本。議員プロファイルの再生成元 |
+| users / answers | D1 | `DB` | 回答の原本。ユーザープロファイルの再生成元 |
+| profile / evidence / cellidx | KV | `PROFILES` | 議員側。バッチが一括投入する |
+| profile:user | KV | `USER_PROFILES` | ユーザー側。意見の保存時に書く |
 
-**API は基本的に KV だけを読む。** D1 はプロファイルを作り直すときの元データとして持っている。
+**KV 名前空間を分けているのは、議員側が `kv bulk put` で一括投入されるから。**
+同居させるとバッチの事故がユーザーデータに届く範囲に入る。
+
+マッチ計算（C）は KV だけを読む。D1 はプロファイルを作り直すときの元データ。
 
 ---
 
@@ -81,6 +91,45 @@ care_harm   × 外国人・移民 × beneficiary  ケアを根拠に、外国人
 
 実データでは uphold が96%、override が4%。
 `override` は稀だが情報量が大きく、`score` の計算では稀少性に応じて増幅している。
+
+---
+
+## 【0】記事と設問（D1）
+
+### `articles`
+
+画面に出すニュース。`body` は段落の配列を JSON 文字列で持つ。
+
+### `article_questions` —— 記事の争点
+
+**1設問 = `frame × target × role` のセル1つ。** ユーザーの回答をどのセルに
+記録するかは、クライアントではなくこのテーブルが決める。
+
+| 列 | 例 |
+|---|---|
+| `id` | `energy-2035_q1` |
+| `article_id` | `energy-2035` |
+| `prompt` | 発電設備が自然環境に与える影響について |
+| `frame` / `target` / `role` | `care_harm` / `自然環境` / `beneficiary` |
+| `intensity` / `confidence` | 0.7 / 0.9（固定値。議員側は LLM が出す） |
+
+`role` は `beneficiary` / `threat` のみ（CHECK 制約）。`neutral` は cells に
+入れないので設問にも使わない。
+
+### `article_question_options` —— 選択肢
+
+1設問につき `uphold` / `override` / `neutral` の3行。単一選択。
+
+```
+energy-2035_q1_uphold    uphold    生態系や景観を壊さないことを優先すべきだ
+energy-2035_q1_override  override  影響はあるだろうが、それを理由に電力供給を低下させるべきではない
+energy-2035_q1_neutral   neutral   特に気にならない
+```
+
+**`stance` は画面に出さない。** `uphold` / `override` は「その価値を根拠として
+持ち出したか、優先順位で下に置いたか」という言語行為の分類で、政策への賛否では
+ない。ラベルにすると必ず賛否と読まれるので、意味は `label_text` の文面が担う
+（`docs/design-constraints.md`）。
 
 ---
 
@@ -377,11 +426,115 @@ evidence は持たない。大政党ほど平均でマッチ度が中庸に寄�
 
 ---
 
+## 【3a】ユーザーと回答（D1）
+
+### `users`
+
+`user_id` / `name` / `email`（一意）/ `last_login_at` / `created_at`。
+認証はまだ無く、`email` は連絡先兼一意キーであって認証済みを意味しない。
+
+### `answers` —— 1ユーザー × 1記事
+
+`unique(user_id, article_id)` で1行。答え直すと上書きする
+（utterances と違い書き換えを許す。UI が編集を前提にしているため）。
+
+| 列 | 意味 |
+|---|---|
+| `interest` | このニュースへの関心度（0 / 0.5 / 1）。`0 <= interest <= 1` の CHECK |
+| `opinion_text` | 自由記述。保存するだけで LLM 抽出は未実装 |
+| `extract_version` | LLM 抽出を流したら記録。未抽出なら null |
+
+`interest` は寄与 `w = intensity × confidence × interest` の `interest` にあたり、
+議員側の `weight`（答弁の本人度）と同じ位置に入る。**記事単位の関心度が、その
+記事の全設問に効く。**
+
+### `answer_selections` —— 設問1問ぶんの回答
+
+`frame` / `target` / `role` / `intensity` / `confidence` を `article_questions`
+から**複製している**。設問のセル割り当ては後から見直す前提のもので、参照のままだと
+設問を直した瞬間に過去の回答の意味が黙って変わるため。議員側で `party_at_time`
+（発言時点の党籍）を持っているのと同じ理由。
+
+`source` は `question`（設問への回答）/ `llm`（自由記述からの抽出）。後者は未実装で、
+抽出した frame を行として足すだけで済むように空けてある。
+
+```sql
+-- cells の集計はこのテーブルの GROUP BY だけで済む
+SELECT s.frame, s.target, s.role,
+       SUM(s.intensity * s.confidence * a.interest) AS w
+FROM answer_selections s JOIN answers a USING (answer_id)
+WHERE a.user_id = ?
+  AND a.interest > 0          -- ★「関心がない」は cells に入れない
+  AND s.stance <> 'neutral'
+GROUP BY s.frame, s.target, s.role;
+```
+
+---
+
+## 【3】ユーザープロファイル（KV `USER_PROFILES`: `profile:user:{user_id}`）
+
+**議員側と同じ形**にしてある。マッチ計算を対称にするためで、`score` / `share` の
+意味がずれると `agree` が成立しない。意見の保存のたびに作り直して put する。
+
+```jsonc
+{
+  "user_id": "test_user1",
+  "computed_at": "2026-08-22T11:41:38.349Z",
+  "profile_version": "user-profile-v1.0",
+  "n_answers": 1,
+  "n_selections": 2,
+
+  "cells": [
+    { "frame": "sanctity_tradition", "target": "国民全体", "role": "beneficiary",
+      "score": 1, "share": 1, "n": 1 }
+  ],
+
+  // 明示的に「関心がない」と表明したセル。cells には入れないが、マッチには使う。
+  // 「まだ答えていない」セルより重く扱う（DECLINED_WEIGHT > SILENT_WEIGHT）
+  "declined_cells": [
+    { "frame": "care_harm", "target": "地方", "role": "beneficiary" }
+  ],
+
+  "override_rate": 0.066,
+  "override_weight": 3.718
+}
+```
+
+**議員側との違いは2つだけ。**
+
+- `distinctiveness` を**持たない**。「議員の中でどれだけ珍しいか」を測る指標なので、
+  母集団の違うユーザーに当てると意味が壊れる。掛けるのは議員側の値だけ
+- `declined_cells` を**持つ**。議員側には「明示的に語らないと表明する」機会がない
+
+`override_rate` は回答が10件に満たないうちは全議員の平均（6.6%）を使う。本人の
+実測は1件でも 33% に跳ね、`k` が実態とかけ離れるため。
+
+集計の実体は `shared/src/user-profile.ts` の `aggregateUserProfile()`。
+D1 に依存しない純粋関数なので、C からも同じものを使える。計算式（`SHARE_PRIOR`、
+`overrideWeight()` など）は `shared/src/scoring.ts` が唯一の正で、**議員側の
+バッチと同じものを読んでいる**。
+
+---
+
 ## 参照方法
+
+### ローカルとリモートは別物
+
+`npm run dev` は**ローカル**（miniflare）を使う。書き込みは
+`.wrangler/state/` の SQLite に入り、**Cloudflare のダッシュボードには出ない**。
+
+| | 付けるオプション | 備考 |
+|---|---|---|
+| ローカル | `--local --persist-to .wrangler/state` | **リポジトリ直下で実行する。** `--persist-to` を省くと実行ディレクトリ直下を見にいき、空に見える |
+| リモート | `--remote` | 本番。ダッシュボードに出るのはこちら |
+
+`npm run dev:api` が `--persist-to ../.wrangler/state`（＝リポジトリ直下）を
+指定しているので、参照側も同じ場所を指す必要がある。
 
 ### KV
 
-すべて `--remote` が要る。付けないとローカルの空 KV を見てしまう。
+以下は `--remote` の例。ローカルを見るときは `--remote` を
+`--local --persist-to .wrangler/state` に置き換える。
 
 ```bash
 # キー一覧
@@ -394,6 +547,11 @@ npx wrangler kv key get "profile:P00001" \
 # セル逆引き（このセルを持つ議員は誰か）
 npx wrangler kv key get "cellidx:sovereignty|国民全体|beneficiary" \
   --binding=PROFILES --config api/wrangler.jsonc --remote
+
+# ユーザープロファイル（★名前空間が違う）
+npx wrangler kv key get "profile:user:test_user1" \
+  --binding=USER_PROFILES --config api/wrangler.jsonc \
+  --local --persist-to .wrangler/state | python3 -m json.tool
 
 # 政党プロファイル
 npx wrangler kv key get "profile:party:自由民主党" \
@@ -475,6 +633,21 @@ npx wrangler d1 execute civic-compass-db --remote --config api/wrangler.jsonc --
 SELECT u.politician_name, f.frame, f.evidence_text
 FROM utterance_frames f JOIN utterances u ON u.utterance_id = f.utterance_id
 WHERE f.stance = 'override' LIMIT 5"
+
+# ユーザーの回答を設問つきで見る（ローカル）
+npx wrangler d1 execute DB --local --persist-to .wrangler/state \
+  --config api/wrangler.jsonc --command "
+SELECT a.article_id, a.interest, s.question_id, s.stance,
+       s.frame || '×' || s.target || '×' || s.role AS cell
+FROM answers a JOIN answer_selections s USING (answer_id)"
+```
+
+ローカルは `sqlite3` で直接開くほうが速い。**`npm run dev` が動いている最中に
+書き込むとロックが競合する**（読むだけなら問題ない）。
+
+```bash
+DB=$(ls .wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite | head -1)
+sqlite3 -header -column "$DB" "SELECT * FROM answers"
 ```
 
 `--remote` を `--local` にすればローカルDBを見る。
@@ -545,15 +718,39 @@ KV は上書きされるが、閾値変更などで**不要になったキーは
 
 ## 現在入っているデータ
 
-**⚠️ 抽出は進行中。以下は途中経過。**
+**⚠️ 抽出は進行中。以下は 2026-08-22 時点の途中経過。**
 
 ```
-D1   utterances 5,906 / frames 12,870 / targets 14,745 / 議員 9人
-KV   profile 9 / evidence 9 / party 4 / cellidx 112 = 134キー（11.9MB）
+抽出        4,979 / 5,859 ブロック
+data/       utterances 8,559 / frames 19,325 / targets 22,641 / 議員 14人
+            profiles 17MB（profile 14 / party 7 / cellidx 137）
 ```
 
-最終的には**15人・12,000セグメント前後**になる見込み。
-完了後に上記の手順で入れ直すので、`speaker_id` 以外の値は変わると考えてよい。
+最終的には**15人**になる見込み。完了後に「データを入れ直すとき」の手順で
+入れ直すので、`speaker_id` 以外の値は変わると考えてよい。
 
 議員の一覧と `speaker_id` の対応は `scripts/kokkai/politicians.json` が正。
 `active: false` の議員（現職でなくなった2名）はプロファイルを作っていない。
+
+### 投入状況
+
+| | ローカル | リモート |
+|---|---|---|
+| D1 マイグレーション | `0000`〜`0003` | **`0000`〜`0001` のみ** |
+| 記事 8本 | ✅ | ✅ |
+| 設問 15問 / 選択肢 45 | ✅ | ❌（`0002` 未適用） |
+| users / answers | ✅（`test_user1` のみ） | ❌（`0003` 未適用） |
+| utterances | ❌ | ✅（抽出途中のもの） |
+| KV `PROFILES`（議員側） | ❌ | ✅（抽出途中のもの） |
+| KV `USER_PROFILES` | ✅（空） | ✅（空） |
+
+**リモートに設問とユーザーのテーブルが無い。** デプロイや `wrangler dev --remote`
+を使うなら、先に `npm run db:migrate:remote` が要る。
+
+ローカルで議員プロファイルを使いたい場合（マッチ計算の動作確認など）は投入する。
+
+```bash
+node scripts/kokkai/export-kv.mjs
+npx wrangler kv bulk put data/profiles/kv-bulk.json --binding=PROFILES \
+  --config api/wrangler.jsonc --local --persist-to .wrangler/state
+```

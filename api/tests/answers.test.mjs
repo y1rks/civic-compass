@@ -8,11 +8,21 @@ const questionRows = [
   ["energy-2035_q2", "energy-2035", 2, "電気料金への影響について", "efficiency_utility", "国民全体", "beneficiary", 0.7, 0.9],
 ];
 
-function createDbMock(rows = questionRows) {
+// 保存後にプロファイルを集計するときの SELECT が返す行。
+// 列の順序は user-profile.ts の select に合わせる。
+// （interest, answerId, stance, frame, target, role, intensity, confidence）
+const selectionRows = [
+  [1, "ans1", "override", "care_harm", "自然環境", "beneficiary", 0.7, 0.9],
+  [1, "ans1", "uphold", "efficiency_utility", "国民全体", "beneficiary", 0.7, 0.9],
+];
+
+function createDbMock(rows = questionRows, selections = selectionRows) {
   const calls = [];
   const db = {
     calls,
     prepare(query) {
+      // 設問の取得とプロファイル集計で別のクエリが走るので、SQL の中身で振り分ける
+      const isProfileQuery = /select/i.test(query) && query.includes("answer_selections");
       const statement = {
         query,
         params: [],
@@ -21,7 +31,7 @@ function createDbMock(rows = questionRows) {
           calls.push({ query, params });
           return statement;
         },
-        raw: async () => rows.map((row) => [...row]),
+        raw: async () => (isProfileQuery ? selections : rows).map((row) => [...row]),
         run: async () => ({ success: true }),
         all: async () => ({ results: [] }),
       };
@@ -32,7 +42,17 @@ function createDbMock(rows = questionRows) {
   return db;
 }
 
-async function post(body, db = createDbMock()) {
+/** KV のモック。put された内容をそのまま持っておく。 */
+function createKvMock() {
+  const store = new Map();
+  return {
+    store,
+    put: async (key, value) => { store.set(key, value); },
+    get: async (key) => store.get(key) ?? null,
+  };
+}
+
+async function post(body, db = createDbMock(), kv = createKvMock()) {
   const workerUrl = new URL("../dist/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${Math.random()}`);
   const { default: app } = await import(workerUrl.href);
@@ -43,10 +63,10 @@ async function post(body, db = createDbMock()) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     }),
-    { DB: db },
+    { DB: db, USER_PROFILES: kv },
     {},
   );
-  return { response, db };
+  return { response, db, kv };
 }
 
 const valid = {
@@ -138,4 +158,39 @@ test("コメントは省略できるが、長すぎると拒否する", async ()
   const { comment: _comment, ...withoutComment } = valid;
   assert.equal((await post(withoutComment)).response.status, 200);
   assert.equal((await post({ ...valid, comment: "あ".repeat(161) })).response.status, 400);
+});
+
+test("保存するとユーザープロファイルが KV に書かれる", async () => {
+  const { kv } = await post(valid);
+
+  const raw = await kv.get("profile:user:test_user1");
+  assert.ok(raw, "profile:user:test_user1 が書かれていない");
+
+  const profile = JSON.parse(raw);
+  assert.equal(profile.user_id, "test_user1");
+  // uphold と override が1つずつ。どちらもセルになる
+  assert.equal(profile.cells.length, 2);
+  assert.deepEqual(
+    profile.cells.map((c) => `${c.frame}|${c.target}|${c.role}`).sort(),
+    ["care_harm|自然環境|beneficiary", "efficiency_utility|国民全体|beneficiary"],
+  );
+  // 議員側にしかない指標はユーザー側では持たない
+  assert.ok(profile.cells.every((c) => !("distinctiveness" in c)));
+});
+
+test("「関心がない」で保存すると cells ではなく declined_cells に入る", async () => {
+  const declinedRows = selectionRows.map((row) => [0, ...row.slice(1)]);
+  const { kv } = await post({ ...valid, interest: 0 }, createDbMock(questionRows, declinedRows));
+  const profile = JSON.parse(await kv.get("profile:user:test_user1"));
+
+  assert.deepEqual(profile.cells, []);
+  assert.equal(profile.declined_cells.length, 2);
+});
+
+test("KV への書き込みが失敗しても保存自体は成功する", async () => {
+  const failing = { put: async () => { throw new Error("KV unavailable"); }, get: async () => null };
+  const { response } = await post(valid, createDbMock(), failing);
+
+  // プロファイルは D1 から作り直せる派生データなので、ここで 500 にはしない
+  assert.equal(response.status, 200);
 });
