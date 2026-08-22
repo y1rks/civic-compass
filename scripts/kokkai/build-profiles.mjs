@@ -14,7 +14,7 @@
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { FRAMES } from "./llm.mjs";
+import { FRAMES, FRAME_JA_PLAIN as FRAME_JA } from "./llm.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUT_DIR = path.join(ROOT, "data/profiles");
@@ -302,18 +302,6 @@ function attachDistinctiveness(profiles) {
   }
 }
 
-const FRAME_JA = {
-  care_harm: "弱い立場への配慮",
-  fairness: "公正さ",
-  liberty_autonomy: "個人の自由と自己決定",
-  loyalty_community: "共同体の結束",
-  authority_order: "秩序と規律",
-  sanctity_tradition: "伝統と尊厳",
-  efficiency_utility: "効率と実利",
-  procedure_rule_of_law: "手続きと法の支配",
-  sovereignty: "国の自立",
-  evidence_expertise: "科学と専門知",
-};
 
 /**
  * プロファイルの要約文。**LLM は使わない**（§6「LLMに政治家の主張を記憶から語らせる」の禁止）。
