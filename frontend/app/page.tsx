@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronRight, Compass,
+  ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronLeft, Compass,
   ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Quote, Sparkles, X,
 } from "lucide-react";
 import { getAnswers, getArticles, getPerspectives, getProfileMatches, saveAnswer } from "../lib/api";
@@ -342,7 +342,7 @@ function PerspectiveModal({ article, result, failed, onClose }: {
         <div className="match-intro">
           <div className="sparkle"><Sparkles size={25} /></div>
           <p className="eyebrow">YOUR PERSPECTIVE</p>
-          <h1>この観点をめぐる<br />議員の答弁を集めました</h1>
+          <h1>この観点をめぐる<br />議員の答弁</h1>
           <p>「{article.category}」の記事で選んだ見方をもとに、国会会議録から抽出</p>
         </div>
 
@@ -362,9 +362,13 @@ function PerspectiveModal({ article, result, failed, onClose }: {
             <PerspectiveBlock key={perspective.questionId} perspective={perspective} index={index} />
           ))}
         </div>
+      </div>
 
+      {/* 免責と戻るボタンは画面下部に固定します。中立性の断りは
+          スクロールで流れていってよいものではないためです。 */}
+      <div className="modal-footer">
         {result && <p className="demo-disclaimer">{result.disclaimer}</p>}
-        <button className="modal-cta" onClick={onClose}>ニュースに戻る <ChevronRight size={18} /></button>
+        <button className="modal-cta" onClick={onClose}><ChevronLeft size={18} /> ニュースに戻る</button>
       </div>
     </div>
   );
@@ -392,13 +396,10 @@ function PerspectiveBlock({ perspective, index }: { perspective: Perspective; in
         <p className="perspective-empty">この観点で語った発言は見つかりませんでした。</p>
       ) : (
         <div className="speaker-list">
-          {/* ラベルは「この論点の中で近いほう / 遠いほう」という相対的なものなので、
-              そう読めるように断っておきます。 */}
-          <p className="speaker-list-note">
-            {perspective.positionsDivided
-              ? "この観点で語った議員から、あなたの回答に近い人と遠い人を選んでいます。この記事とは別の場面の発言も含みます。"
-              : "この観点では、議員の立場に違いがありませんでした。対比にならないため2人だけを選んでいます。"}
-          </p>
+          {/* 立場が分かれなかったときだけ断ります。カードが2枚しか出ない理由になるためです。 */}
+          {!perspective.positionsDivided && (
+            <p className="speaker-list-note">この観点では、議員の立場に違いがありませんでした。</p>
+          )}
           {perspective.politicians.map((politician) => (
             <SpeakerCard
               key={`${politician.speakerId}-${politician.role}`}
@@ -441,7 +442,7 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
       <details className="statement-fold">
         <summary>
           <Quote size={11} />
-          実際の答弁を読む
+          実際の答弁
           <span className="fold-count">{politician.statements.length}件</span>
           <ChevronDown size={14} className="fold-chevron" />
         </summary>
@@ -449,7 +450,7 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
           {politician.statements.map((statement, index) => (
             <div className="statement" key={`${statement.url ?? "no-url"}-${index}`}>
               <div className="statement-meta">
-                <span>{statement.quotable ? "国会会議録" : "本人の発信"}</span>
+                <span>{statement.quotable ? "国会会議録" : "公式HP"}</span>
                 {statement.date && <time>{statement.date}</time>}
               </div>
               {/* 原文を出せるのは会議録（公文書）だけ。公式サイト由来は要約とリンクに留めます。 */}

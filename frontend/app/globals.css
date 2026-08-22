@@ -144,8 +144,11 @@ button { color:inherit; }
 .modal-header { flex:0 0 auto; height:64px; padding:0 16px; display:grid; grid-template-columns:40px 1fr 60px; align-items:center; position:relative; }
 .modal-header>span { text-align:center; font-size:11px; font-weight:700; }
 .modal-header .step-label { text-align:right; color:rgba(255,255,255,.55); font-size:9px; }
-/* スクロールするのはここだけ。最後の行が下端で切れないよう、セーフエリアぶん余白を足します。 */
-.modal-content { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:13px 16px calc(30px + env(safe-area-inset-bottom)); position:relative; }
+/* スクロールするのはここだけ。下は固定の footer が受けます。 */
+.modal-content { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:13px 16px 20px; position:relative; }
+/* 免責と戻るボタンは常に見える位置に置きます。影は、下に続きがあることの合図です。 */
+.modal-footer { flex:0 0 auto; padding:11px 16px calc(15px + env(safe-area-inset-bottom)); background:var(--green); box-shadow:0 -14px 24px rgba(5,28,23,.3); }
+.modal-footer .demo-disclaimer { margin:0 0 9px; }
 .match-intro { text-align:center; }
 .sparkle { width:50px; height:50px; border-radius:50%; display:grid; place-items:center; margin:0 auto 13px; color:#ffc3ad; background:rgba(255,255,255,.09); }
 .match-intro h1 { font-family:Georgia,"Yu Mincho",serif; font-size:26px; line-height:1.45; letter-spacing:-.04em; margin:8px 0; }
@@ -207,6 +210,7 @@ button { color:inherit; }
 .statement-summary { color:#4e615e; font-style:italic; }
 .statement-link { display:inline-flex; align-items:center; gap:4px; margin-top:8px; font-size:9px; font-weight:800; color:var(--green); text-decoration:none; border-bottom:1px solid rgba(31,75,69,.25); }
 .demo-disclaimer { text-align:center; font-size:8px; line-height:1.7; color:rgba(255,255,255,.48); margin:13px 12px; }
+/* 論点ごとの断り書き。立場が分かれなかったときだけ出ます。 */
 .demo-disclaimer.dark-text { color:#8a9694; }
 .modal-cta { background:white; color:var(--green); box-shadow:none; }
 .profile-header { background:var(--green); color:white; padding:42px 20px 25px; text-align:center; }
