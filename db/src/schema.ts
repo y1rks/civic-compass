@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { check, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { CELL_ROLES, FRAMES, ROLES, STANCES, TARGETS, inList } from "@civic-compass/shared";
 
 /** 記事一覧と詳細画面で表示する記事です。本文は段落配列をJSON文字列で保存します。 */
@@ -238,3 +238,129 @@ export type ArticleQuestion = typeof articleQuestions.$inferSelect;
 export type NewArticleQuestion = typeof articleQuestions.$inferInsert;
 export type ArticleQuestionOption = typeof articleQuestionOptions.$inferSelect;
 export type NewArticleQuestionOption = typeof articleQuestionOptions.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// 【3a】ユーザーと回答 —— ユーザープロファイル【3】の元データ。
+//
+// 【1】utterances と同じ位置づけで、KV のユーザープロファイルは
+// ここから何度でも作り直せる派生データです。集計式は必ず変わるので、
+// 生の回答をここに残しておくことが要点になります。
+//
+// ---------------------------------------------------------------------------
+
+/** 回答の出どころ。LLM 抽出に切り替えたとき、行を足すだけで済むように持ちます。 */
+const ANSWER_SOURCES = ["question", "llm"] as const;
+
+/**
+ * 回答の持ち主。id / name / email が必須です。
+ *
+ * パスワードや認証情報は持ちません。プロトタイプでは本人確認をしないので、
+ * `email` は連絡先兼一意キーであって、認証済みであることを意味しません。
+ */
+export const users = sqliteTable(
+  "users",
+  {
+    userId: text("user_id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+
+    /**
+     * 最後にログインした時刻（ISO8601・UTC）。
+     * ログインの仕組みがまだ無いので、当面は null のままです。
+     */
+    lastLoginAt: text("last_login_at"),
+
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [uniqueIndex("users_email_idx").on(t.email)],
+);
+
+/**
+ * 1ユーザー × 1記事の回答。同じ記事に答え直すと上書きします
+ * （【1】utterances と違い、こちらは書き換えを許す。UI が編集を前提にしているため）。
+ */
+export const answers = sqliteTable(
+  "answers",
+  {
+    answerId: text("answer_id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.userId),
+    articleId: text("article_id")
+      .notNull()
+      .references(() => articles.id),
+
+    /**
+     * このニュースへの関心度（0 / 0.5 / 1）。
+     * 寄与 w = intensity × confidence × interest の interest にあたり、
+     * 議員側の weight（答弁の本人度）と同じ位置に入ります。
+     * 0 なら寄与が 0 になるので cells には入りませんが、レコードは残します。
+     */
+    interest: real("interest").notNull(),
+
+    /** 自由記述。いまは保存するだけで、LLM 抽出は未実装です。 */
+    opinionText: text("opinion_text"),
+    /** LLM 抽出を流したら記録します。未抽出なら null。 */
+    extractVersion: text("extract_version"),
+
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [
+    index("answers_user_idx").on(t.userId),
+    // 1ユーザー × 1記事で1行。答え直しは UPSERT になります。
+    uniqueIndex("answers_user_article_idx").on(t.userId, t.articleId),
+    check("answers_interest_check", sql`interest >= 0 AND interest <= 1`),
+  ],
+);
+
+/**
+ * 設問1問ぶんの回答。cells の集計はここを `frame × target × role` で
+ * GROUP BY するだけになります。
+ *
+ * ★ frame / target / role / intensity を article_questions から複製しています。
+ *   設問の文面やセルの割り当ては後から見直す前提のもので、参照のままだと
+ *   過去の回答の意味が黙って変わります。発言側で `party_at_time`（発言時点の党籍）を
+ *   持っているのと同じ理由で、回答時点の値を固定します。
+ */
+export const answerSelections = sqliteTable(
+  "answer_selections",
+  {
+    answerId: text("answer_id")
+      .notNull()
+      .references(() => answers.answerId),
+    questionId: text("question_id")
+      .notNull()
+      .references(() => articleQuestions.id),
+
+    /** uphold（根拠として持ち出した） | override（優先順位で下に置いた） | neutral */
+    stance: text("stance", { enum: STANCES }).notNull(),
+
+    // --- 回答時点のセル。article_questions からの複製（上記★） ---
+    frame: text("frame", { enum: FRAMES }).notNull(),
+    target: text("target", { enum: TARGETS }).notNull(),
+    role: text("role", { enum: CELL_ROLES }).notNull(),
+    intensity: real("intensity").notNull(),
+    confidence: real("confidence").notNull(),
+
+    /** question（設問への回答）| llm（自由記述からの抽出） */
+    source: text("source", { enum: ANSWER_SOURCES }).notNull().default("question"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.answerId, t.questionId] }),
+    // cells の集計はこのキーでの GROUP BY になります。
+    index("answer_selections_cell_idx").on(t.frame, t.target, t.role),
+    check("answer_selections_stance_check", sql.raw(inList("stance", STANCES))),
+    check("answer_selections_frame_check", sql.raw(inList("frame", FRAMES))),
+    check("answer_selections_target_check", sql.raw(inList("target", TARGETS))),
+    check("answer_selections_role_check", sql.raw(inList("role", CELL_ROLES))),
+    check("answer_selections_source_check", sql.raw(inList("source", ANSWER_SOURCES))),
+  ],
+);
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Answer = typeof answers.$inferSelect;
+export type NewAnswer = typeof answers.$inferInsert;
+export type AnswerSelection = typeof answerSelections.$inferSelect;
+export type NewAnswerSelection = typeof answerSelections.$inferInsert;
