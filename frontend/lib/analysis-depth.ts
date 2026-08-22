@@ -1,45 +1,45 @@
+import { FRAMES } from "@civic-compass/shared";
 import type { Article, SavedAnswer } from "./types";
 
 /**
  * 「分析の深さ」の算出。
  *
- * 測っているのは**マッチの結果がどれだけ安定して出せる状態か**です。
- * 進捗バーではないので、記事が増えても目標が青天井にはなりません。
+ * 測っているのは**マッチの結果がどれだけ確からしいか**です。進捗バーではないので、
+ * 分母に「全記事数」を使いません。記事が1000件になったとき、全部答えないと数字が
+ * 上がらなくなってしまうためです。回答の**絶対数**から出します。
  */
 
 /**
- * これ以上答えても結果がほぼ変わらない回答数。**実測値**。
+ * 回答数に対する確からしさの時定数。**実測に合わせた値**。
  *
- * 議員15人のプロファイルを「思想が固まった1人のユーザー」に見立て、その人の全セル
- * （55〜84種）から k 個だけを抜き出して回答したことにし、全部答えたときの順位と
- * どれだけ一致するかを測った（12ペルソナ × 各20サンプル）。
+ * 議員15人のプロファイルを「思想が固まった1人のユーザー」に見立て、その人のセルから
+ * k 個だけ抜き出して回答したことにし、**その議員自身が1位に出る割合**を測った
+ * （12ペルソナ × 各25サンプル）。
  *
- *   セル数 15 → 1位一致 36%   （現行の設問カタログの上限）
- *          24 → 57%
- *          36 → 78%
- *          40 → 85%
- *          45 → 81%    ← ここから伸びない
- *          50 → 84%
+ *   回答数  実測    1-exp(-k/28)
+ *       12   31%           35%
+ *       20   49%           51%
+ *       30   73%           66%
+ *       40   80%           76%
+ *       50   91%           83%
+ *       70  100%           92%
  *
- * 1問あたりの改善は 15→24問で 2.3pt、24→36問で 1.75pt、36→50問で 0.4pt と
- * 4分の1以下に落ちる。36問（≒20記事）を必要十分とみなす。
+ * ★頭打ちにならない。答えるほど上がり続けるので、**どこかで 100% にする式にしない**。
+ *   指数で 100% に漸近させ、高い値ほど実測より控えめに出るようにしてある。
  */
-export const SUFFICIENT_ANSWERS = 36;
+export const DEPTH_TAU = 28;
 
 /** 量（どれだけ答えたか）と幅（いくつの観点に触れたか）の配分。 */
 const ANSWER_WEIGHT = 0.6;
 const FRAME_WEIGHT = 0.4;
 
 /**
- * 0〜100 の整数。
+ * 0〜99 の整数。**100 には到達しません**（回答の項が漸近するため。切り捨てで丸める）。
  *
- * ★分母に「全記事数」を使わないこと。記事が1000件になったとき、全部答えないと
- *   数字が上がらなくなる。目標は `SUFFICIENT_ANSWERS` で頭打ちにする。
- *
- * ★ただし出題数がそれに満たないうちは、出題数のほうを目標にする。そうしないと
- *   記事が8本しかない状態では、全問答えても 42% までしか届かない。
- *   フレームの分母も同じ理由で、10種ではなく**出題に登場する種類**にする
- *   （`sovereignty` と `evidence_expertise` の設問はまだ存在しない）。
+ * ★フレームの分母は語彙の全10種。**出題に登場する種類ではありません**。
+ *   いまの設問カタログには `sovereignty` と `evidence_expertise` の設問が無いので、
+ *   全記事に答えても 8/10 で止まります。これは正しい挙動で、**記事の少なさが
+ *   そのまま分析の浅さ**だからです（現行カタログ 8記事15問での上限は 57%）。
  */
 export function analysisDepth(articles: Article[], saved: Record<string, SavedAnswer>): number {
   const questions = articles.flatMap((article) => article.questions);
@@ -48,9 +48,9 @@ export function analysisDepth(articles: Article[], saved: Record<string, SavedAn
   const answeredIds = new Set(Object.values(saved).flatMap((answer) => Object.keys(answer.selections)));
   const answered = questions.filter((question) => answeredIds.has(question.id));
 
-  const answerRate = Math.min(1, answered.length / Math.min(SUFFICIENT_ANSWERS, questions.length));
-  const askedFrames = new Set(questions.map((question) => question.frame));
-  const frameCoverage = new Set(answered.map((question) => question.frame)).size / askedFrames.size;
+  const answerDepth = 1 - Math.exp(-answered.length / DEPTH_TAU);
+  const frameDepth = new Set(answered.map((question) => question.frame)).size / FRAMES.length;
 
-  return Math.round(100 * (ANSWER_WEIGHT * answerRate + FRAME_WEIGHT * frameCoverage));
+  // 切り上げないのは、漸近しているだけの 99.9 を 100 と表示しないため
+  return Math.floor(100 * (ANSWER_WEIGHT * answerDepth + FRAME_WEIGHT * frameDepth));
 }
