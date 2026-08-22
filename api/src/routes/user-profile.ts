@@ -42,7 +42,14 @@ const isProfileCell = (value: unknown): value is ProfileCell => {
     && typeof cell.n === "number" && Number.isFinite(cell.n);
 };
 
-/** 現在のユーザーがよく使う考え方を、`score` の上位3件に絞って返します。 */
+/**
+ * 現在のユーザーがよく使う考え方を、`score` の上位3件に絞って返します。
+ *
+ * ★`score > 0` のセルだけを返します。負のセルは「その価値を持ち出したうえで
+ *   優先順位を下げた」ことを表すので、「あなたが重視している考え方」として並べると
+ *   意味が逆になります。3件に満たなければ、あるぶんだけ返します（0件なら空配列で、
+ *   画面側が回答を促す文言を出します）。
+ */
 userProfile.get("/", async (c) => {
   const raw = await c.env.USER_PROFILES.get(userProfileKey(CURRENT_USER_ID));
   if (raw === null) return c.json({ cells: [] });
@@ -58,7 +65,7 @@ userProfile.get("/", async (c) => {
     return c.json({ status: "error", message: "User profile is invalid" }, 500);
   }
 
-  return c.json({ cells: [...profile.cells].sort(compareCells).slice(0, 3) });
+  return c.json({ cells: profile.cells.filter((cell) => cell.score > 0).sort(compareCells).slice(0, 3) });
 });
 
 export default userProfile;

@@ -17,30 +17,19 @@ const ROLE_STANCE: Record<UserProfileCell["role"], string> = {
 /**
  * その価値観を重視すると、どういう判断になるのかを1文で示します。
  *
- * `score` が負のセルは「その価値を持ち出したうえで、優先順位を下げた」ことを表すので、
- * 同じ物差しを示したうえで「ほかの事情を優先する」と続けます。
+ * ★`score > 0` のセルだけを渡すこと。負のセルは「その価値を持ち出したうえで優先順位を
+ *   下げた」ことを表すので、この文面だと意味が逆になります。絞り込みは
+ *   api/src/routes/user-profile.ts と、下の `shown` の2箇所でやっています。
  */
 const tendencySummary = (cell: UserProfileCell): string => {
-  const score = Math.max(-1, Math.min(1, cell.score));
   const { lens } = FRAME_LENS[cell.frame][cell.role];
   const subject = cell.role === "beneficiary" ? `${cell.target}にとって${lens}` : `${cell.target}が${lens}`;
-
-  if (score === 0) return `「${subject}」はどちらとも決めていない`;
-  return score > 0
-    ? `「${subject}」を重視`
-    : `「${subject}」よりも、ほかの事情を優先`;
+  return `「${subject}」を重視`;
 };
 
-/**
- * その考え方をとる人の言い分の例。
- *
- * ★`score` が正のセルにだけ出します。負のセル（その価値を持ち出したうえで優先順位を
- *   下げた）に「重視する人の言い分」を並べると、正反対のことを言っていることになります。
- */
+/** その考え方をとる人の言い分の例。`tendencySummary` と同じく `score > 0` 前提です。 */
 const tendencyExamples = (cell: UserProfileCell): readonly string[] =>
-  cell.score > 0
-    ? FRAME_LENS[cell.frame][cell.role].examples.map((line) => line.replaceAll("{target}", cell.target))
-    : [];
+  FRAME_LENS[cell.frame][cell.role].examples.map((line) => line.replaceAll("{target}", cell.target));
 
 export function ProfileTrends({
   cells,
@@ -49,6 +38,10 @@ export function ProfileTrends({
   cells: UserProfileCell[];
   status: "loading" | "ready" | "error";
 }) {
+  // API（api/src/routes/user-profile.ts）が絞っているが、ここでも絞る。
+  // 負のセルが混ざると「重視」と逆の意味の文面が出てしまうため、表示する場所で保証する。
+  const shown = cells.filter((cell) => cell.score > 0);
+
   return (
     <section className="profile-trends" aria-labelledby="profile-trends-heading">
       <div className="section-heading profile-trends-heading">
@@ -56,7 +49,11 @@ export function ProfileTrends({
             API 側（api/src/routes/user-profile.ts）で3件に絞っている。 */}
         <div id="profile-trends-heading">あなたの考え方の傾向</div>
       </div>
-      <p className="profile-trends-intro">回答の結果、以下の価値観を強く優先する傾向にあります。</p>
+      {/* 出すのはカードがあるときだけ。0件のときに「以下の価値観を…」と続けると
+          そのあとの「保存していくと表示されます」と矛盾する。 */}
+      {status === "ready" && shown.length > 0 && (
+        <p className="profile-trends-intro">回答の結果、以下の価値観を強く優先する傾向にあります。</p>
+      )}
 
       {status === "loading" && (
         <div className="trends-message" role="status">考え方の傾向を読み込んでいます…</div>
@@ -64,12 +61,13 @@ export function ProfileTrends({
       {status === "error" && (
         <div className="trends-message" role="alert">考え方の傾向を読み込めませんでした。</div>
       )}
-      {status === "ready" && cells.length === 0 && (
-        <div className="trends-message">ニュースへの考えを保存すると、ここに傾向が表示されます。</div>
+      {status === "ready" && shown.length === 0 && (
+        // 保存が0件のときだけでなく、保存はあるが「優先した」セルが無いときも通る
+        <div className="trends-message">ニュースに意見を保存していくと、ここに傾向が表示されます。</div>
       )}
-      {status === "ready" && cells.length > 0 && (
+      {status === "ready" && shown.length > 0 && (
         <div className="trend-list">
-          {cells.map((cell, index) => {
+          {shown.map((cell, index) => {
             const examples = tendencyExamples(cell);
             return (
               <article className="trend-card" key={`${cell.frame}|${cell.target}|${cell.role}`}>
@@ -98,7 +96,6 @@ export function ProfileTrends({
           })}
         </div>
       )}
-      <p className="trend-score-help">政策への賛否ではなく、その価値を判断でどう扱ったかを表します。</p>
     </section>
   );
 }
