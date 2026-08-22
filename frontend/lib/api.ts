@@ -1,4 +1,6 @@
-import type { Article, Match, PerspectiveResult, SavedAnswer } from "./types";
+import type {
+  Article, Match, PerspectiveResult, ProfileMatchesResponse, SavedAnswer, UserProfileCell,
+} from "./types";
 
 type ArticlesResponse = {
   articles: Article[];
@@ -12,8 +14,12 @@ type AnswerResponse = {
   answer: SavedAnswer;
 };
 
-type MatchesResponse = {
+type ArticleMatchesResponse = {
   matches: Match[];
+};
+
+type UserProfileResponse = {
+  cells: UserProfileCell[];
 };
 
 async function requestJson<T>(path: string, init: RequestInit | undefined, errorMessage: string): Promise<T> {
@@ -74,11 +80,29 @@ export async function getPerspectives(articleId: string): Promise<PerspectiveRes
   );
 }
 
-export async function getProfileMatches(articleIds: string[]): Promise<Match[]> {
-  const data = await requestJson<MatchesResponse>("/api/matches/profile", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ articleIds }),
-  }, "総合マッチの取得に失敗しました");
+/** 記事単位のデモ用マッチ。B に置き換わりましたが、API は残っています。 */
+export async function getMatches(articleId: string): Promise<Match[]> {
+  const data = await requestJson<ArticleMatchesResponse>(
+    `/api/matches/${encodeURIComponent(articleId)}`,
+    undefined,
+    "政治家マッチの取得に失敗しました",
+  );
   return data.matches;
+}
+
+export async function getProfileMatches(): Promise<ProfileMatchesResponse> {
+  return requestJson<ProfileMatchesResponse>(
+    "/api/matches/profile",
+    undefined,
+    "総合マッチの取得に失敗しました",
+  );
+}
+
+export async function getUserProfileCells(): Promise<UserProfileCell[]> {
+  const data = await requestJson<UserProfileResponse>(
+    "/api/user-profile",
+    undefined,
+    "考え方の傾向の取得に失敗しました",
+  );
+  return data.cells;
 }

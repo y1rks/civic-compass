@@ -2,13 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, Compass,
+  ArrowLeft, Check, ChevronLeft, ChevronRight, Compass,
   ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
 } from "lucide-react";
-import { getAnswers, getArticles, getPerspectives, getProfileMatches, saveAnswer } from "../lib/api";
-import type { Article, Match, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement, SavedAnswer } from "../lib/types";
+import {
+  getAnswers, getArticles, getPerspectives, getProfileMatches, getUserProfileCells, saveAnswer,
+} from "../lib/api";
+import type {
+  Article, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement,
+  ProfileMatchesResponse, SavedAnswer, UserProfileCell,
+} from "../lib/types";
 import { DEFAULT_INTEREST, interestLabel } from "../lib/interest";
 import { OpinionSheet } from "./opinion-sheet";
+import { ProfileTrends } from "./profile-trends";
+import { ProfileMatches } from "./profile-matches";
 import type { Answers } from "./question-block";
 
 type Screen = "feed" | "detail" | "profile";
@@ -30,9 +37,13 @@ export default function HomePage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [saved, setSaved] = useState<Record<string, SavedAnswer>>({});
   const [modalOpen, setModalOpen] = useState(false);
+  // 記事1件ぶんは B（/api/perspectives）。政治コンパスの総合マッチは C（/api/matches/profile）。
   const [perspectives, setPerspectives] = useState<PerspectiveResult | null>(null);
   const [perspectiveError, setPerspectiveError] = useState(false);
-  const [profileMatches, setProfileMatches] = useState<Match[]>([]);
+  const [profileMatchResult, setProfileMatchResult] = useState<ProfileMatchesResponse | null>(null);
+  const [profileMatchesStatus, setProfileMatchesStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [profileCells, setProfileCells] = useState<UserProfileCell[]>([]);
+  const [profileCellsStatus, setProfileCellsStatus] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -112,16 +123,41 @@ export default function HomePage() {
     }
 
     let cancelled = false;
-    void getProfileMatches(articleIds)
-      .then((nextMatches) => {
-        if (!cancelled) setProfileMatches(nextMatches);
+    void getProfileMatches()
+      .then((result) => {
+        if (cancelled) return;
+        setProfileMatchResult(result);
+        setProfileMatchesStatus("ready");
       })
-      .catch((error: unknown) => console.error("Failed to load profile matches", error));
+      .catch((error: unknown) => {
+        console.error("Failed to load profile matches", error);
+        if (!cancelled) setProfileMatchesStatus("error");
+      });
 
     return () => {
       cancelled = true;
     };
   }, [saved]);
+
+  useEffect(() => {
+    if (screen !== "profile") return;
+
+    let cancelled = false;
+    void getUserProfileCells()
+      .then((cells) => {
+        if (cancelled) return;
+        setProfileCells(cells);
+        setProfileCellsStatus("ready");
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load user profile", error);
+        if (!cancelled) setProfileCellsStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [saved, screen]);
 
   useEffect(() => {
     if (screen !== "feed" || visibleCount >= articles.length) return;
@@ -217,7 +253,7 @@ export default function HomePage() {
           onSave={handleSave}
         />
       )}
-      {screen === "profile" && <Profile matches={profileMatches} savedCount={Object.keys(saved).length} />}
+      {screen === "profile" && <Profile matchResult={profileMatchResult} matchesStatus={profileMatchesStatus} savedCount={Object.keys(saved).length} cells={profileCells} cellsStatus={profileCellsStatus} />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
       {modalOpen && selected && (
         <PerspectiveModal
@@ -522,7 +558,19 @@ function StatementCard({ statement, featured = false }: { statement: Perspective
   );
 }
 
-function Profile({ matches, savedCount }: { matches: Match[]; savedCount: number }) {
+function Profile({
+  matchResult,
+  matchesStatus,
+  savedCount,
+  cells,
+  cellsStatus,
+}: {
+  matchResult: ProfileMatchesResponse | null;
+  matchesStatus: "loading" | "ready" | "error";
+  savedCount: number;
+  cells: UserProfileCell[];
+  cellsStatus: "loading" | "ready" | "error";
+}) {
   return (
     <div className="screen profile-screen">
       <header className="profile-header">
@@ -536,22 +584,10 @@ function Profile({ matches, savedCount }: { matches: Match[]; savedCount: number
       </header>
       <section className="profile-content">
         <div className="section-heading"><div>考えが近い政治家</div><span>総合マッチ</span></div>
-        {savedCount === 0 ? (
-          <div className="empty-state"><Compass size={30} /><h2>まだ分析データがありません</h2><p>ニュースに関心を示すと、ここにマッチ結果が表示されます。</p></div>
-        ) : (
-          <div className="profile-match-list">
-            {matches.map((match, index) => (
-              <a className="profile-match-card" key={match.id} href={match.website} target="_blank" rel="noreferrer">
-                <span className="profile-rank">{index + 1}</span>
-                <div className="politician-avatar large" style={{ background: match.color }}>{match.initials}</div>
-                <div className="profile-match-info"><h2>{match.name}</h2><p>{match.party}・{match.area}</p><div className="mini-track"><span style={{ width: `${match.score}%` }} /></div></div>
-                <div className="profile-score"><strong>{match.score}<small>%</small></strong><ArrowUpRight size={16} /></div>
-              </a>
-            ))}
-          </div>
-        )}
+        <ProfileMatches savedCount={savedCount} result={matchResult} status={matchesStatus} />
+        <ProfileTrends cells={cells} status={cellsStatus} />
         <div className="profile-privacy"><LockKeyhole size={20} /><div><strong>あなたの関心は非公開です</strong><p>保存した記事やコメントが、他のユーザーや政治家に公開されることはありません。</p></div></div>
-        <p className="demo-disclaimer dark-text">人物・政党・マッチ結果・リンク先はデモ用の架空データです。</p>
+        <p className="demo-disclaimer dark-text">{matchResult?.disclaimer ?? "これは参考情報であり、特定の候補者や政党への投票を推奨するものではありません。"}</p>
       </section>
     </div>
   );
