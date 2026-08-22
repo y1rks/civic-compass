@@ -87,6 +87,9 @@ type CellIndexEntry = {
  */
 type CellCandidate = CellIndexEntry & { frame: Frame; target: Target; role: CellRole };
 
+/** KV `profile:{speaker_id}` の値。重視度の判定に、その議員の share の分布だけを使います。 */
+type PoliticianProfile = { cells: { share: number }[] };
+
 /** KV `profile:evidence:{speaker_id}` の値。`cells` のキーは `frame|target|role`。 */
 type EvidenceDocument = {
   speaker_id: string;
@@ -137,16 +140,38 @@ function stanceText(frame: Frame, score: number): string {
   return `${label}の観点（一定でない）`;
 }
 
+/** その議員が特に語っている観点とみなす倍率（本人の中央値に対して）。 */
+const HIGH_SHARE_RATIO = 1.5;
+/** 逆に、あまり語っていない観点とみなす倍率。 */
+const LOW_SHARE_RATIO = 0.75;
+
+type MentionLevel = "high" | "mid" | "low";
+
+const MENTION_LEVEL_LABEL: Record<MentionLevel, string> = { high: "高", mid: "中", low: "低" };
+
 /**
- * どれだけ語っているか。**全議員平均に対する倍率だけ**を出します。
+ * その議員が、その観点にどれだけ比重を置いているか（`share` の3段階）。
  *
- * 多いか少ないかが分かればよいので、`share`（発言全体に占める割合）や
- * `n`（該当件数）までは画面に出しません。値そのものはレスポンスに入っているので、
- * 見せ方を変えたくなったらここだけ直せば済みます。
+ * ★**固定のしきい値では判定できません。** `share` は「そのセルの寄与 ÷ 全セルの寄与」で、
+ *   分母がその議員の持つセル数に依存するためです（docs/data-reference.md の
+ *   「share も平滑化する」）。実データでも、セルが7個の議員は最小でも 0.110、
+ *   83個の議員は中央値が 0.005 で、固定値で切ると**発言量の差がそのままラベルになります**。
+ *
+ *   そこで**その議員自身の中央値との比**で見ます。「この人の平均的な観点と比べて
+ *   よく語っているか」になるので、議員をまたいでも同じ意味で読めます。
  */
-function mentionText(distinctiveness: number): string {
-  return `この観点での発言量が議員平均の${distinctiveness.toFixed(1)}倍です`;
+function mentionLevel(share: number, ownShares: number[]): MentionLevel | null {
+  if (ownShares.length === 0) return null;
+  const sorted = [...ownShares].sort((a, b) => a - b);
+  const middle = sorted.length % 2 === 1
+    ? sorted[(sorted.length - 1) / 2]
+    : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+  if (middle <= 0) return null;
+  if (share >= middle * HIGH_SHARE_RATIO) return "high";
+  if (share < middle * LOW_SHARE_RATIO) return "low";
+  return "mid";
 }
+
 
 /**
  * 回答の向きと議員の向きが揃っているか。
@@ -393,11 +418,17 @@ perspectives.get("/:articleId", async (c) => {
 
   // ③ 選ばれた議員の evidence だけを読みます。論点をまたいで同じ議員が出るので重複を除きます。
   const speakerIds = [...new Set(selections.flatMap((s) => s.picked.map((p) => p.speaker_id)))];
+  // プロファイル本体も読みます。重視度の判定に、その議員の share の分布が要るためです
+  // （議員あたり十数KB。evidence の 0.2〜3MB に比べれば無視できます）。
   const evidenceById = new Map<string, EvidenceDocument | null>();
+  const sharesById = new Map<string, number[]>();
   await Promise.all(
-    speakerIds.slice(0, MAX_EVIDENCE_READS).map(async (speakerId) => {
-      evidenceById.set(speakerId, await c.env.PROFILES.get<EvidenceDocument>(`profile:evidence:${speakerId}`, "json"));
-    }),
+    speakerIds.slice(0, MAX_EVIDENCE_READS).flatMap((speakerId) => [
+      c.env.PROFILES.get<EvidenceDocument>(`profile:evidence:${speakerId}`, "json")
+        .then((doc) => { evidenceById.set(speakerId, doc); }),
+      c.env.PROFILES.get<PoliticianProfile>(`profile:${speakerId}`, "json")
+        .then((profile) => { sharesById.set(speakerId, (profile?.cells ?? []).map((cell) => cell.share)); }),
+    ]),
   );
 
   const body = selections.map(({ row, divided, picked }) => ({
@@ -412,23 +443,29 @@ perspectives.get("/:articleId", async (c) => {
     // false なら、その論点では議員の立場に差が無かったということ。画面で断ります。
     positionsDivided: divided,
     politicians: picked
-      .map((entry) => ({
-        speakerId: entry.speaker_id,
-        politicianName: entry.politician_name,
-        party: entry.party,
-        // ★この議員がその対象をどう扱ったか。回答側の role とは違うことがあります。
-        role: entry.role,
-        roleLabel: roleLabel(entry.role),
-        score: entry.score,
-        share: entry.share,
-        distinctiveness: entry.distinctiveness,
-        n: entry.n,
-        stanceText: stanceText(row.frame, entry.score),
-        mentionText: mentionText(entry.distinctiveness),
-        alignment: entry.alignment,
-        // evidence は1セルにつき最大3件。絞らずすべて返し、先頭が代表の1件になります。
-        statements: featureOne((evidenceById.get(entry.speaker_id)?.cells[cellKey(entry)] ?? []).map(toStatement)),
-      }))
+      .map((entry) => {
+        // その議員自身の中で、この観点にどれだけ比重を置いているか
+        const level = mentionLevel(entry.share, sharesById.get(entry.speaker_id) ?? []);
+
+        return {
+          speakerId: entry.speaker_id,
+          politicianName: entry.politician_name,
+          party: entry.party,
+          // ★この議員がその対象をどう扱ったか。回答側の role とは違うことがあります。
+          role: entry.role,
+          roleLabel: roleLabel(entry.role),
+          score: entry.score,
+          share: entry.share,
+          distinctiveness: entry.distinctiveness,
+          n: entry.n,
+          stanceText: stanceText(row.frame, entry.score),
+          mentionLevel: level,
+          mentionLevelLabel: level === null ? null : MENTION_LEVEL_LABEL[level],
+          alignment: entry.alignment,
+          // evidence は1セルにつき最大3件。絞らずすべて返し、先頭が代表の1件になります。
+          statements: featureOne((evidenceById.get(entry.speaker_id)?.cells[cellKey(entry)] ?? []).map(toStatement)),
+        };
+      })
       // 発言を出せない議員は載せません。このポップアップの中身は「どう答えたか」なので、
       // 引用が無いカードは目的を果たしません。
       .filter((politician) => politician.statements.length > 0),

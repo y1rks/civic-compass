@@ -107,13 +107,23 @@ const evidence = {
   },
 };
 
+/**
+ * 【2】議員プロファイル。重視度は **その議員自身の share の分布** から決めるので、
+ * cellidx だけでは判定できない（share は本人の全セルで合計1.0になる比率で、
+ * 大きさがセル数に依存するため）。
+ */
+const profiles = {
+  // 中央値 0.020 → 高は 0.030以上、低は 0.015未満
+  "profile:P00001": { cells: [{ share: 0.010 }, { share: 0.020 }, { share: 0.050 }] },
+};
+
 function createKvMock(index = cellIndex, docs = evidence) {
   const reads = [];
   return {
     reads,
     get: async (key) => {
       reads.push(key);
-      return index[key] ?? docs[key] ?? null;
+      return index[key] ?? docs[key] ?? profiles[key] ?? null;
     },
   };
 }
@@ -294,9 +304,6 @@ test("マッチ度は返さず、その価値をどう扱ったかを文で返�
   // score が負＝その価値を優先順位で下に置いた。「反対」とは書かない。
   // 一律「〜の観点」にすると score が画面から消えるので、ここだけ補う。
   if (override) assert.equal(override.stanceText, "被害や苦痛への配慮の観点（他を優先）");
-  // 割合や件数は出さず、全議員平均に対する倍率だけを出す
-  assert.equal(uphold.mentionText, "この観点での発言量が議員平均の1.2倍です");
-  assert.equal(uphold.mentionText.includes("%"), false);
 
   assert.equal("match_score" in politicians[0], false);
   assert.equal("matchScore" in politicians[0], false);
@@ -353,6 +360,44 @@ test("国会会議録の発言は原文を返し、公式サイト由来は要�
   assert.equal(webOne.summary, "自然環境への配慮を訴えた");
 });
 
+test("重視度は、その議員自身の share の中央値との比で決める", async () => {
+  // P00001 の share 分布は 0.010 / 0.020 / 0.050 で中央値 0.020。
+  // 固定のしきい値だと、セル数の少ない議員が何でも「高」になってしまう。
+  const cases = [
+    [0.050, "high", "高"],   // 中央値の2.5倍
+    [0.020, "mid", "中"],    // 中央値ちょうど
+    [0.010, "low", "低"],    // 中央値の0.5倍
+  ];
+
+  for (const [share, level, label] of cases) {
+    const index = {
+      ...cellIndex,
+      "cellidx:care_harm|自然環境|threat": [],
+      "cellidx:care_harm|自然環境|beneficiary": [entry("P00001", "似A", 1, share)],
+    };
+    const { response } = await request("/api/perspectives/energy-2035", createDbMock(), createKvMock(index));
+    const data = await response.json();
+    const politician = data.perspectives[0].politicians[0];
+
+    assert.equal(politician.mentionLevel, level, `share=${share}`);
+    assert.equal(politician.mentionLevelLabel, label);
+  }
+});
+
+test("プロファイルを読めなければ重視度は出さない", async () => {
+  const index = {
+    ...cellIndex,
+    "cellidx:care_harm|自然環境|threat": [],
+    "cellidx:care_harm|自然環境|beneficiary": [entry("P00002", "似B", 1, 0.03)],
+  };
+  const { response } = await request("/api/perspectives/energy-2035", createDbMock(), createKvMock(index));
+  const data = await response.json();
+
+  // P00002 のプロファイルは用意していない
+  assert.equal(data.perspectives[0].politicians[0].mentionLevel, null);
+  assert.equal(data.perspectives[0].politicians[0].mentionLevelLabel, null);
+});
+
 test("代表の1件が先頭に来て、毎回変わる", async () => {
   // 画面は先頭だけを畳まずに出し、残りは「その他の答弁」に隠す
   const seen = new Set();
@@ -369,18 +414,19 @@ test("代表の1件が先頭に来て、毎回変わる", async () => {
   assert.equal(seen.size <= 3, true);
 });
 
-test("evidence は選んだ議員の分だけ読む（候補を全員読まない）", async () => {
+test("KV は表示する議員の分しか読まない（候補を全員読まない）", async () => {
   const { response, kv } = await request("/api/perspectives/energy-2035");
   const data = await response.json();
 
   const evidenceReads = kv.reads.filter((key) => key.startsWith("profile:evidence:"));
+  const profileReads = kv.reads.filter((key) => /^profile:P\d+$/.test(key));
   const shown = new Set(data.perspectives.flatMap((p) => p.politicians.map((x) => x.speakerId)));
 
   // 候補は7人いるが、読むのは表示する議員の分だけ（論点をまたぐ重複は除く）
   assert.equal(evidenceReads.length, shown.size);
   assert.equal(evidenceReads.length <= 4, true, `evidence を ${evidenceReads.length} 件読んでいる`);
-  // マッチ計算用の profile:{id} は読まない（cellidx だけで議員名・党名まで出せる）
-  assert.equal(kv.reads.some((key) => /^profile:P\d+$/.test(key)), false);
+  // プロファイル本体は重視度の判定に要る。読むのは evidence と同じ議員の分だけ
+  assert.deepEqual(profileReads.sort(), [...shown].map((id) => `profile:${id}`).sort());
 });
 
 test("発言を出せない議員はカードに出さない", async () => {

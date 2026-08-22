@@ -341,7 +341,9 @@ function PerspectiveModal({ article, result, failed, onClose }: {
       <div className="modal-content">
         <div className="match-intro">
           <div className="sparkle"><Sparkles size={25} /></div>
-          <p className="eyebrow">YOUR PERSPECTIVE</p>
+          {/* 一覧が TODAY'S ISSUES、政治コンパスが MY PERSPECTIVE。
+              ここは国会会議録（公文書）の原文をそのまま出す画面なので PUBLIC RECORD。 */}
+          <p className="eyebrow">PUBLIC RECORD</p>
           <h1>この観点をめぐる議員の答弁</h1>
           <p>「{article.category}」の記事で選んだ見方をもとに、国会会議録から抽出</p>
         </div>
@@ -437,8 +439,13 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
       <div className="speaker-tags">
         <span className={`speaker-role ${politician.role}`}>{target}を{politician.roleLabel}</span>
         <span className="speaker-frame">{politician.stanceText}</span>
+        {/* その議員の中でこの観点がどれだけの比重か。タグ2つとは性格が違うので囲いません。 */}
+        {politician.mentionLevelLabel && (
+          <span className={`speaker-level ${politician.mentionLevel}`}>
+            重視度：<strong>{politician.mentionLevelLabel}</strong>
+          </span>
+        )}
       </div>
-      <p className="speaker-mention">{politician.mentionText}</p>
 
       {/* 代表の1件だけを畳まずに出します。まず実際の言葉に触れてもらい、
           残りは読みたい人が開く形にします。どれが代表になるかは API 側で毎回変わります。 */}

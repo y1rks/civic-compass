@@ -106,10 +106,16 @@ export type PerspectivePolitician = {
    */
   stanceText: string;
   /**
-   * 「この観点での発言量が議員平均の1.8倍です」。同上。
-   * 多いか少ないかだけを出すので、`share` や `n` は画面には使いません。
+   * その議員自身の中で、この観点にどれだけ比重を置いているか（`share` の3段階）。
+   *
+   * `share` は本人の全セルで合計1.0になる比率なので、大きさがセル数に依存します。
+   * そのため固定のしきい値ではなく、**本人の中央値との比**で判定しています。
+   *
+   * プロファイルを読めなかったときだけ null になります（チップを出しません）。
    */
-  mentionText: string;
+  mentionLevel: "high" | "mid" | "low" | null;
+  /** 「高」「中」「低」。`mentionLevel` が null なら null。 */
+  mentionLevelLabel: string | null;
   /**
    * 「似た立場」/「異なる立場」。マッチ度ではありません。
    *

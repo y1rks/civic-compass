@@ -196,10 +196,23 @@ button { color:inherit; }
 .speaker-role.threat { background:#f4ece7; color:#8a6350; }
 /* どの観点（frame）から語ったか。役割チップと色で競わないよう、線だけで区別します。 */
 .speaker-frame { padding:4px 9px; border-radius:99px; font-size:9px; font-weight:800; border:1px solid rgba(24,55,51,.17); color:#5c6f6c; }
-.speaker-mention { margin:9px 0 0; font-size:10px; line-height:1.7; color:#7b8987; }
+/* その議員の中でこの観点がどれだけの比重か。高い／低いを色で善し悪しに見せないよう、
+   濃さだけで差を付けます（docs/design-constraints.md「中立性」）。 */
+/* こちらは囲いません。「立場」「観点」は分類のタグ、重視度はそこから測った量で、
+   性格が違うためです。囲いを外すと、狭い画面で3つ目が折り返す確率も下がります。
+
+   ★字の大きさは「重視度：」と値で揃えます。変えると縦位置が揃って見えません。
+   差は色だけで付けます。 */
+.speaker-level { display:inline-flex; align-items:center; padding:4px 2px; font-size:9px; line-height:1; font-weight:800; color:#8a9694; }
+.speaker-level strong { font-size:inherit; color:#7b8987; }
+.speaker-level.high strong { color:var(--green); }
+.speaker-level.mid strong { color:#5c6f6c; }
 /* 答弁の原文は畳んでおき、開いた人にだけ出します。まず「誰が・どう扱ったか」を
    見比べられるようにするためで、開閉は <details> がやるので JS は要りません。 */
 .statement-fold { margin-top:2px; }
+/* 閉じているときは、サマリーの下パディングがカードの下余白に積み重なって
+   間延びして見えます。当たり判定の高さは保ったまま、食い込ませて詰めます。 */
+.statement-fold:not([open]) { margin-bottom:-8px; }
 /* 枠で囲わず、カードの白地にそのまま置きます。inline-flex なので
    当たり判定は文字の幅ぶんだけ。負のマージンで文字列の左端を揃えています。 */
 .statement-fold>summary { list-style:none; cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:6px; margin-left:-6px; padding:8px 6px; color:var(--green); font-size:10px; font-weight:800; transition:opacity .15s; }
