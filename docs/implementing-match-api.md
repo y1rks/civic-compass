@@ -15,8 +15,7 @@ D1 と KV に何が入っているか、`share` / `score` / `distinctiveness` �
 ## やること
 
 ```
-answers を全件取得
-  ↓ ① ユーザープロファイル【3】を集計（LLM 不要）
+① ユーザープロファイル【3】       ← ✅ 実装済み。KV から読むだけ
   ↓ ② 全議員の profile:{id} と突き合わせ（evidence は読まない。合計150KB程度）
   ↓ ③ match_score + reasons + differences を組み立て
   ↓ ④ 上位3人だけ profile:evidence:{id} を読んで根拠を添える
@@ -24,75 +23,111 @@ answers を全件取得
 
 **LLM は一切使いません。** 理由文もテンプレートで作ります（後述）。
 
+**①はすでに動いています。** 意見の保存（`POST /api/answers`）のたびに集計され、
+KV `USER_PROFILES` の `profile:user:{user_id}` に入ります。C は**読むだけ**で、
+リクエストのたびに集計し直してはいけません。
+
 ---
 
-## ① ユーザープロファイルを作る
+## ① ユーザープロファイル —— ✅ 実装済み
 
-**議員と完全に同じ形にします。**マッチ計算を対称にするためです。
+**議員と完全に同じ形です。**マッチ計算を対称にするためです。
+
+| | |
+|---|---|
+| 置き場 | KV `USER_PROFILES`（議員側の `PROFILES` とは**別の名前空間**） |
+| キー | `profile:user:{user_id}` |
+| 更新 | `POST /api/answers` のたび |
+| 集計の実体 | `shared/src/user-profile.ts` の `aggregateUserProfile()` |
+| 計算式 | `shared/src/scoring.ts`（**議員側のバッチと同じものを読んでいる**） |
+
+読み方はこれだけです。
+
+```ts
+const raw = await c.env.USER_PROFILES.get(`profile:user:${userId}`);
+const user: UserProfile = raw ? JSON.parse(raw) : null;
+```
+
+以下は中身の説明です。**再実装する必要はありません**が、何が入っているかを
+理解してから ② に進んでください。
 
 ```jsonc
-// KV: profile:user:U123
+// KV USER_PROFILES: profile:user:test_user1
 {
-  "user_id": "U123",
-  "computed_at": "2026-08-21T12:34:56Z",
-  "n_answers": 12,
-  "cells": [
-    {
-      "frame": "liberty_autonomy",
-      "target": "個人",
-      "role": "beneficiary",
-      "score": 0.90,
-      "share": 0.25,
-      "n": 3,
-      "sources": ["ans_0091", "ans_0104"]
-    }
-  ],
-  "frames": { "liberty_autonomy": { "score": 0.90, "share": 0.25, "n": 3 } },
+  "user_id": "test_user1",
+  "computed_at": "2026-08-22T11:41:38.349Z",
+  "profile_version": "user-profile-v1.0",
+  "n_answers": 1,        // 回答した記事の数
+  "n_selections": 2,     // 答えた設問の数（neutral / 関心なし を含む）
 
-  // ★明示的に「関心がない」と表明したセル。cells には入れないが、マッチには使う。
-  //   「まだ答えていない」セルとは区別する（後述）
+  "cells": [
+    { "frame": "sanctity_tradition", "target": "国民全体", "role": "beneficiary",
+      "score": 1, "share": 1, "n": 1 }
+  ],
+
+  // 明示的に「関心がない」と表明したセル。cells には入れないが、マッチには使う。
+  // 「まだ答えていない」セルとは区別する（後述）
   "declined_cells": [
-    { "frame": "care_harm", "target": "子ども・将来世代", "role": "beneficiary" }
+    { "frame": "care_harm", "target": "地方", "role": "beneficiary" }
   ],
 
   "override_rate": 0.066,
-  "override_weight": 3.72
+  "override_weight": 3.718
 }
 ```
 
-### 計算式（議員側と同じ）
+**議員側との違いは2つだけです。**
+
+- `distinctiveness` を**持ちません**。掛けるのは議員側の値だけ（後述）
+- `declined_cells` を**持ちます**。議員側には「明示的に語らないと表明する」機会がない
+
+`frames`（フレーム単独に畳んだもの）はユーザー側では作っていません。マッチ計算は
+セル単位で行うので不要で、表示に要るなら `cells` から畳めます。
+
+---
+
+### 計算式（参考。実装済みなので書き直す必要はありません）
 
 ```
 寄与 w = intensity × confidence × interest
-         ※ 議員側の weight（答弁の本人度）にあたるものが、ユーザー側では interest（関心の有無 0/1）
+         ※ 議員側の weight（答弁の本人度）にあたるものが、ユーザー側では interest（関心度 0/0.5/1）
 
 k = min(1 + ln(1 / override率), 6.0)      ← override の稀少性重み
 
 score = Σ(sign(stance) × w × (override ? k : 1)) / Σ(w × (override ? k : 1))
-share = (そのセルのΣw + 4.0) / (全セルのΣw + 4.0 × セル数)
+share = (そのセルのΣw + SHARE_PRIOR) / (全セルのΣw + SHARE_PRIOR × セル数)
 ```
 
 `sign` は `uphold` = +1、`override` = −1、`neutral` = 0。
 
-`role: neutral` のターゲットは **cells に含めません**（情報量がなく疎になるだけ）。
-`beneficiary` と `threat` だけをセル化します。
+セルに入るのは `role` が `beneficiary` / `threat` のものだけです（`neutral` は
+情報量がなく疎になるだけ）。設問側の CHECK 制約でも `neutral` は弾いています。
 
-### ★必ず守ること：override 補正をユーザー側にも掛ける
+### ★片側だけに補正を掛けてはいけない
 
 `score` を突き合わせる以上、**片方だけ増幅するとスケールが合いません**。
 `agree = 1 - |u.score - p.score| / 2` が意味を失います。
 
-`scripts/kokkai/build-profiles.mjs` に `overrideWeight()` と `calcOverrideRate()` が
-export されているので、そのまま使ってください。
+そのため計算式は `shared/src/scoring.ts` を唯一の正とし、**議員側のバッチ
+（`scripts/kokkai/build-profiles.mjs`）とユーザー側（api）が同じ関数を読んで
+います**。`api` 側にコピーを作らないでください。
 
-ただしユーザーは回答数が少なく override 率が不安定です。
+```
+shared/src/scoring.ts
+  SHARE_PRIOR = 4.0          share のベイズ平滑化
+  overrideWeight(rate)       override の稀少性重み k
+  MEAN_OVERRIDE_RATE = 0.066 回答が少ないうちに使う全議員平均
+  distinctiveness(share, mean)
+```
 
-- **回答が10件未満のうちは、全議員の平均（override率 6.6%、k = 3.72）を使う**
-- 10件を超えたら本人の実測値に切り替える
+ユーザーは回答数が少なく override 率が不安定なので（1件でも 33% に跳ねる）、
+**回答が10件未満のうちは全議員の平均（6.6%、k = 3.72）を使います**。
+10件を超えたら本人の実測値に切り替わります。実装済みです。
 
 ### ★回答は3つに分ける —— 「関心がない」と「まだ答えていない」は別物
 
-D1 の `answers` / `answer_selections` から作るとき、回答を**3つのバケツ**に分けます。
+集計側（実装済み）は回答を**3つのバケツ**に分けています。**C が使うのは②の
+`declined_cells` で、③との重みの差をつけるのは C の仕事です。**
 
 | バケツ | 条件 | 扱い |
 |---|---|---|
@@ -112,7 +147,15 @@ const DECLINED_WEIGHT = 0.5;   // ② ユーザーが明示的に降りたセル
 `cells`（①）の share 合計なので、②は分母にも分子にも入らず、素通りします。減点にはしないこと
 （「関心がない」は反対意見ではないため）。
 
-#### ★`interest = 0` を cells に入れてはいけない
+```js
+// ② 明示的に降りたセルを、議員も語っていない → 少し加点
+const declinedAgreement = user.declined_cells
+  .filter((c) => !pmap.has(key(c)))
+  .length / Math.max(user.declined_cells.length, 1);
+num += declinedAgreement * DECLINED_WEIGHT;
+```
+
+#### ★`interest = 0` を cells に入れてはいけない（集計側は対応済み）
 
 寄与 `w = intensity × confidence × interest` が 0 になるので無害に見えますが、**`share` は
 ベイズ平滑化されている**ので 0 になりません。
@@ -131,7 +174,7 @@ share = (Σw + SHARE_PRIOR) / (全セルのΣw + SHARE_PRIOR × セル数)
 **ほぼ同じ share になります。** しかも `den += u.share` で分母に入るので、
 「関心がない」と答えたセルを持っていない議員が減点されます。意図と正反対です。
 
-必ず集計前に落としてください。
+集計側はすでに落としています。**自前で集計し直すときは同じことをしてください。**
 
 ```sql
 -- ① cells の元になる行
@@ -166,6 +209,7 @@ WHERE a.user_id = ?
 ### `distinctiveness` はユーザー側では計算しない
 
 「議員の中でどれだけ珍しいか」を測る指標なので、掛けるのは議員側の値だけです。
+ユーザープロファイルにこのフィールドは**存在しません**。
 
 ---
 
@@ -495,6 +539,18 @@ full.slice(s, t)                        // → 根拠にした箇所
 
 「やってはいけないこと」は設計上の禁止事項でしたが、こちらは**実装時に踏みやすい罠**です。
 
+### KV の名前空間を間違えない
+
+議員側は `PROFILES`、ユーザー側は `USER_PROFILES` で**別の名前空間**です。
+`api/src/bindings.ts` で両方バインドしてあります。
+
+```ts
+export type Bindings = Pick<Env, "DB" | "PROFILES" | "USER_PROFILES">;
+```
+
+ローカルで参照するときは `--local --persist-to .wrangler/state` が要ります
+（`data-reference.md`「ローカルとリモートは別物」）。
+
 ### `silentAgreement` の数え方
 
 「両者とも語らなかったセル」を数えるとき、**母集団をどう取るか**で結果が変わります。
@@ -520,8 +576,11 @@ npx wrangler kv key list --binding=PROFILES --config api/wrangler.jsonc --remote
 `NaN` になります。**`reliable: false` の判定を割り算より前に置いてください。**
 
 ```js
-if (user.cells.length === 0 || user.n_answers < 5) return { reliable: false };
+if (!user || user.cells.length === 0 || user.n_answers < 5) return { reliable: false };
 ```
+
+プロファイルが KV に**無い**こともあります（まだ一度も保存していないユーザー）。
+`get()` が `null` を返すので、そこも同じ分岐で受けてください。
 
 ### `MIN_N` は議員側にだけ適用する
 
@@ -714,3 +773,25 @@ UI に「強者/弱者」といった形で出さないでください。**
   `calcOverrideRate()` を export しているので、ユーザー側でも同じものを使う
 - `scripts/kokkai/politicians.json` — 議員マスタ。`speaker_id` と `active` フラグ
   （`active: false` の議員はプロファイルを作っていない。マッチ候補から外す）
+
+---
+
+## いまの状態（2026-08-22）
+
+| 段階 | 状態 |
+|---|---|
+| ① ユーザープロファイル | ✅ 実装済み。保存のたびに KV `USER_PROFILES` が更新される |
+| ② マッチ計算 | ❌ 未着手。`GET /api/matches/:articleId` はスタブを返している |
+| ③ reasons / differences | ❌ 未着手 |
+| ④ evidence | ❌ 未着手 |
+
+`api/src/routes/matches.ts` が `api/src/data/politicians.ts` の固定値を返している
+状態なので、そこを置き換える形になります。
+
+**ローカルで試すなら議員プロファイルの投入が要ります**（既定では入っていません）。
+
+```bash
+node scripts/kokkai/export-kv.mjs
+npx wrangler kv bulk put data/profiles/kv-bulk.json --binding=PROFILES \
+  --config api/wrangler.jsonc --local --persist-to .wrangler/state
+```

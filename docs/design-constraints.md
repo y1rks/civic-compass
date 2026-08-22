@@ -139,7 +139,7 @@ nemotron は引用一致100%だが `override` を1件も拾えず、
 
 プロンプト改善（v1 → v2）で分布相関の平均が +0.73 → +0.81 に上がった。
 弱点は2つで、**否定的文脈の override を落とす**ことと
-**暗黙の `sovereignty` を落とす**こと。`prompts/extract.md` の例4と
+**暗黙の `sovereignty` を落とす**こと。`scripts/kokkai/prompts/extract.md` の例4と
 「出力する前に確認すること」がその対策にあたる。
 
 ---
