@@ -44,7 +44,7 @@ export function stanceSign(stance: string): number {
   return stance === "uphold" ? 1 : stance === "override" ? -1 : 0;
 }
 
-/** score の分子・分母では override を増幅する。share には掛けない（重視度が歪むため）。 */
+/** score の分子・分母では override を増幅する。share には掛けない（言及度が歪むため）。 */
 export function stanceWeight(stance: string, kOverride: number): number {
   return stance === "override" ? kOverride : 1;
 }

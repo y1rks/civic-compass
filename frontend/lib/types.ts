@@ -36,7 +36,7 @@ export type Article = {
 /** 保存済みの「この記事への意見」。D1 の answers / answer_selections に対応します。 */
 export type SavedAnswer = {
   articleId: string;
-  /** このニュースへの関心度（0 / 0.5 / 1）。寄与 w に掛かります。 */
+  /** このニュースへの関心度（0 / 0.33 / 0.66 / 1）。寄与 w に掛かります。 */
   interest: number;
   comment: string;
   /** 設問ID → 選んだ stance */
@@ -95,7 +95,7 @@ export type PerspectivePolitician = {
   roleLabel: string;
   /** −1〜+1。その価値を根拠として持ち出したか、優先順位で下に置いたか。 */
   score: number;
-  /** 全セル中の比重（＝重視度）。 */
+  /** 全セル中の比重（＝言及度）。 */
   share: number;
   /** 全議員平均の何倍語っているか。 */
   distinctiveness: number;

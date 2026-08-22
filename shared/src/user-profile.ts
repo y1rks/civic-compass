@@ -106,7 +106,7 @@ export function aggregateUserProfile(rows: SelectionRow[], userId: string, now: 
     cell.n += 1;
     cell.num += stanceSign(row.stance) * w * sw;
     cell.denScore += w * sw;
-    // share は素の寄与で出す。override の増幅を持ち込むと重視度が歪むため。
+    // share は素の寄与で出す。override の増幅を持ち込むと言及度が歪むため。
     cell.den += w;
     cells.set(key, cell);
   }

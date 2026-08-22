@@ -167,7 +167,7 @@ const user: UserProfile = raw ? JSON.parse(raw) : null;
 
 ```
 寄与 w = intensity × confidence × interest
-         ※ 議員側の weight（答弁の本人度）にあたるものが、ユーザー側では interest（関心度 0/0.5/1）
+         ※ 議員側の weight（答弁の本人度）にあたるものが、ユーザー側では interest（関心度 0/0.33/0.66/1）
 
 k = min(1 + ln(1 / override率), 6.0)      ← override の稀少性重み
 
@@ -257,7 +257,7 @@ PRIOR 0.5   Aさん               稲田朋美 47 斉藤鉄夫 42 / Bさん     
 答えたか）と `score`（どの言い分を選んだか）です。全記事に答えた2人だと、prior を 0 に
 しても差は 1.3pt しか出ませんでした。
 
-関心度をもっと効かせたいなら prior ではなく、**同じセルを複数記事で問う**（回数で重視度が
+関心度をもっと効かせたいなら prior ではなく、**同じセルを複数記事で問う**（回数で言及度が
 積み上がる）か、**`interest` の刻みを広げる**（0/0.3/1 なら生の比 3.3:1）のどちらかが本筋。
 
 ユーザーは回答数が少なく override 率が不安定なので（1件でも 33% に跳ねる）、
@@ -611,7 +611,7 @@ full.slice(s, t)                        // → 根拠にした箇所
           "target": "個人", "role": "beneficiary", "contribution": 0.31 }
       ],
       "differences": [
-        { "text": "共同体・伝統の重視度はこの議員のほうが低い", "frame": "loyalty_community" }
+        { "text": "共同体・伝統の言及度はこの議員のほうが低い", "frame": "loyalty_community" }
       ],
       "evidence": [
         { "date": "2024-03-12", "quote": "……原文……",

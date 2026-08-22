@@ -87,7 +87,7 @@ type CellIndexEntry = {
  */
 type CellCandidate = CellIndexEntry & { frame: Frame; target: Target; role: CellRole };
 
-/** KV `profile:{speaker_id}` の値。重視度の判定に、その議員の share の分布だけを使います。 */
+/** KV `profile:{speaker_id}` の値。言及度の判定に、その議員の share の分布だけを使います。 */
 type PoliticianProfile = { cells: { share: number }[] };
 
 /** KV `profile:evidence:{speaker_id}` の値。`cells` のキーは `frame|target|role`。 */
@@ -418,7 +418,7 @@ perspectives.get("/:articleId", async (c) => {
 
   // ③ 選ばれた議員の evidence だけを読みます。論点をまたいで同じ議員が出るので重複を除きます。
   const speakerIds = [...new Set(selections.flatMap((s) => s.picked.map((p) => p.speaker_id)))];
-  // プロファイル本体も読みます。重視度の判定に、その議員の share の分布が要るためです
+  // プロファイル本体も読みます。言及度の判定に、その議員の share の分布が要るためです
   // （議員あたり十数KB。evidence の 0.2〜3MB に比べれば無視できます）。
   const evidenceById = new Map<string, EvidenceDocument | null>();
   const sharesById = new Map<string, number[]>();

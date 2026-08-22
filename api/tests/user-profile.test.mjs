@@ -88,7 +88,7 @@ test("重視したセルが share にはっきり出る（擬似寄与に押し�
 
   // 議員側の SHARE_PRIOR = 4.0 を当てると 1.5倍まで潰れ、マッチ計算の
   // sqrt(u.share × p.share) がほぼ定数になって「何を重視したか」が効かなくなる。
-  assert.ok(strong.share > weak.share * 3, `重視度が潰れている: ${strong.share} / ${weak.share}`);
+  assert.ok(strong.share > weak.share * 3, `言及度が潰れている: ${strong.share} / ${weak.share}`);
 });
 
 test("distinctiveness はユーザー側では持たない", () => {

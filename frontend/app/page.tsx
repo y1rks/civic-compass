@@ -510,7 +510,7 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
         {/* その議員の中でこの観点がどれだけの比重か。タグ2つとは性格が違うので囲いません。 */}
         {politician.mentionLevelLabel && (
           <span className={`speaker-level ${politician.mentionLevel}`}>
-            重視度：<strong>{politician.mentionLevelLabel}</strong>
+            言及度：<strong>{politician.mentionLevelLabel}</strong>
           </span>
         )}
       </div>
