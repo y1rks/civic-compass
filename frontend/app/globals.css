@@ -132,38 +132,113 @@ button { color:inherit; }
 .fab-layer { position:fixed; z-index:15; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); padding:0 18px max(18px,env(safe-area-inset-bottom)); display:flex; justify-content:flex-end; pointer-events:none; }
 .fab { pointer-events:auto; position:relative; width:60px; height:60px; border:0; border-radius:50%; background:var(--coral); color:#fff; display:grid; place-items:center; cursor:pointer; box-shadow:0 10px 26px rgba(213,90,55,.38); transition:transform .16s,box-shadow .16s; }
 .fab:hover { box-shadow:0 12px 30px rgba(213,90,55,.46); }
+/* 編集モード（保存済み）は色を反転します。地の色（--paper）に白は近いので、
+   影を少し濃いめにして輪郭を出します。 */
+.fab.editing { background:#fff; color:var(--coral); box-shadow:0 8px 22px rgba(24,55,51,.2); }
+.fab.editing:hover { box-shadow:0 10px 26px rgba(24,55,51,.27); }
 .fab:active { transform:scale(.94); }
-.fab.saved::after { content:""; position:absolute; top:3px; right:3px; width:13px; height:13px; border-radius:50%; background:var(--green); border:2.5px solid var(--paper); }
+/* 「書きかけで保存していない」ことの印。保存済みかどうかはアイコン（鉛筆／吹き出し）で分かるので、
+   ここでは出しません。 */
+.fab.unsaved::after { content:""; position:absolute; top:3px; right:3px; width:13px; height:13px; border-radius:50%; background:var(--green); border:2.5px solid var(--paper); }
 .sheet-icon { width:30px; height:30px; border-radius:9px; background:#fee5dc; color:var(--coral); display:grid; place-items:center; }
-.match-modal { position:fixed; z-index:50; inset:0; max-width:520px; margin:0 auto; overflow-y:auto; overscroll-behavior:contain; background:var(--green); color:white; animation:modalIn .35s cubic-bezier(.2,.8,.2,1); }
+/* 下端に合わせて置き、高さを明示します。`inset:0` で上下から挟むと、祖先の状況しだいで
+   下に隙間が残ることがあるためです。中身だけをスクロールさせるので、
+   ヘッダー（閉じるボタン）は流れていきません。 */
+.match-modal { position:fixed; z-index:50; left:0; right:0; bottom:0; height:100dvh; max-width:520px; margin:0 auto; display:flex; flex-direction:column; overflow:hidden; background:var(--green); color:white; animation:modalIn .35s cubic-bezier(.2,.8,.2,1); }
 @keyframes modalIn { from { transform:translateY(100%); } to { transform:translateY(0); } }
 .modal-glow { position:absolute; top:-100px; left:50%; transform:translateX(-50%); width:370px; height:370px; border-radius:50%; background:radial-gradient(circle,rgba(71,128,112,.48),transparent 69%); pointer-events:none; }
-.modal-header { height:64px; padding:0 16px; display:grid; grid-template-columns:40px 1fr 60px; align-items:center; position:relative; }
+/* ★ヘッダーと footer には z-index が要ります。スクロールする .modal-content が
+   position:relative なので、指定しないと中身が影の上に描かれて影が消えます。 */
+.modal-header { flex:0 0 auto; height:64px; padding:0 16px; display:grid; grid-template-columns:40px 1fr 60px; align-items:center; position:relative; z-index:1; box-shadow:0 12px 20px -14px rgba(5,28,23,.75); }
 .modal-header>span { text-align:center; font-size:11px; font-weight:700; }
 .modal-header .step-label { text-align:right; color:rgba(255,255,255,.55); font-size:9px; }
-.modal-content { padding:13px 16px 30px; position:relative; }
+/* スクロールするのはここだけ。下は固定の footer が受けます。 */
+.modal-content { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:13px 16px 20px; position:relative; }
+/* 免責と戻るボタンは常に見える位置に置きます。影は、下に続きがあることの合図です。 */
+.modal-footer { flex:0 0 auto; position:relative; z-index:1; padding:11px 16px calc(15px + env(safe-area-inset-bottom)); background:var(--green); box-shadow:0 -14px 22px -10px rgba(5,28,23,.75); }
+.modal-footer .demo-disclaimer { margin:0 0 9px; }
 .match-intro { text-align:center; }
 .sparkle { width:50px; height:50px; border-radius:50%; display:grid; place-items:center; margin:0 auto 13px; color:#ffc3ad; background:rgba(255,255,255,.09); }
-.match-intro h1 { font-family:Georgia,"Yu Mincho",serif; font-size:26px; line-height:1.45; letter-spacing:-.04em; margin:8px 0; }
+/* 1行に収める見出し。狭い画面では字を詰めます（折り返すと下の論点まで押し下がるため）。 */
+.match-intro h1 { font-family:Georgia,"Yu Mincho",serif; font-size:clamp(19px,6.3vw,25px); line-height:1.45; letter-spacing:-.04em; margin:8px 0; }
 .match-intro>p:last-child { margin:0; font-size:10px; color:rgba(255,255,255,.58); }
-.match-list { display:grid; gap:10px; margin-top:23px; }
-.match-card { position:relative; overflow:hidden; padding:15px; background:#fff; color:var(--ink); border-radius:15px; box-shadow:0 8px 25px rgba(5,28,23,.18); }
-.rank { position:absolute; top:-8px; left:-2px; font-family:Georgia,serif; font-style:italic; font-size:49px; line-height:1; color:rgba(31,75,69,.055); }
-.match-person { display:grid; grid-template-columns:45px 1fr 58px; gap:10px; align-items:center; position:relative; }
-.politician-avatar { width:43px; height:43px; border-radius:50%; color:white; display:grid; place-items:center; font-family:Georgia,serif; font-size:12px; font-weight:700; box-shadow:inset 0 0 0 3px rgba(255,255,255,.25); }
+.politician-avatar { width:43px; height:43px; border-radius:50%; color:white; display:grid; place-items:center; font-family:"Yu Mincho",Georgia,serif; font-size:17px; font-weight:700; box-shadow:inset 0 0 0 3px rgba(255,255,255,.25); }
 .politician-avatar.large { width:48px; height:48px; }
-.match-person h2,.profile-match-info h2 { margin:0 0 3px; font-family:Georgia,"Yu Mincho",serif; font-size:15px; }
-.match-person p,.profile-match-info p { margin:0; font-size:9px; color:#7b8987; }
-.match-score { text-align:right; line-height:.8; }
-.match-score strong { font-family:Georgia,serif; font-size:25px; color:var(--coral); }
-.match-score>span { color:var(--coral); font-size:11px; font-weight:700; }
-.match-score small { display:block; margin-top:7px; color:#889593; font-size:8px; }
-.score-track,.mini-track { height:3px; background:#ecefea; border-radius:3px; overflow:hidden; margin:11px 0; }
-.score-track span,.mini-track span { display:block; height:100%; background:linear-gradient(90deg,var(--coral),#f3ab74); border-radius:inherit; }
-.reason { background:#f6f4ed; border-radius:9px; padding:9px 11px; }
-.reason span { color:var(--coral); font-size:8px; font-weight:800; letter-spacing:.07em; }
-.reason p { font-size:10px; line-height:1.7; margin:3px 0 0; color:#4e615e; }
+.profile-match-info h2 { margin:0 0 3px; font-family:Georgia,"Yu Mincho",serif; font-size:15px; }
+.profile-match-info p { margin:0; font-size:9px; color:#7b8987; }
+.mini-track { height:3px; background:#ecefea; border-radius:3px; overflow:hidden; margin:11px 0; }
+.mini-track span { display:block; height:100%; background:linear-gradient(90deg,var(--coral),#f3ab74); border-radius:inherit; }
+.rank { position:absolute; top:-10px; right:2px; font-family:Georgia,serif; font-style:italic; font-size:49px; line-height:1; color:rgba(255,255,255,.09); }
+
+/* --- B（意見保存直後のポップアップ）------------------------------------
+   マッチ度ではなく「この論点を議員がどう語ってきたか」を出す画面です。
+   数字（%やバー）で優劣を示さないこと。読ませたいのは発言そのものです。 */
+.perspective-status { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:26px; padding:18px 14px; border-radius:13px; background:rgba(255,255,255,.07); font-size:11px; line-height:1.7; color:rgba(255,255,255,.72); text-align:center; }
+.spinner.light { border-color:rgba(255,255,255,.7); border-right-color:transparent; }
+.perspective-list { display:grid; gap:26px; margin-top:23px; }
+.perspective-block { position:relative; }
+.perspective-head { position:relative; padding:0 2px; }
+.perspective-eyebrow { margin:0; font-size:9px; font-weight:800; letter-spacing:.19em; color:#ffc3ad; }
+.perspective-head h2 { margin:6px 0 10px; font-family:Georgia,"Yu Mincho",serif; font-size:17px; line-height:1.5; letter-spacing:-.02em; font-weight:600; }
+.cell-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.cell-chip { border-radius:99px; padding:5px 10px; font-size:10px; font-weight:700; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.13); color:rgba(255,255,255,.82); }
+.cell-chip.frame { background:rgba(232,111,76,.2); border-color:rgba(232,111,76,.35); color:#ffd0be; }
+.perspective-empty { margin:12px 2px 0; font-size:10px; line-height:1.7; color:rgba(255,255,255,.55); }
+.speaker-list { display:grid; gap:10px; margin-top:13px; }
+/* セルは政策トピックを持たないので、引用は記事のテーマとは別の場面から来る。
+   「同じ話題の答弁」と読まれないための断り書き。 */
+.speaker-list-note { margin:0 2px; font-size:9px; line-height:1.7; color:rgba(255,255,255,.5); }
+.speaker-card { padding:14px; background:#fff; color:var(--ink); border-radius:15px; box-shadow:0 8px 25px rgba(5,28,23,.18); }
+.speaker-row { display:grid; grid-template-columns:43px 1fr auto; gap:10px; align-items:center; }
+.speaker-name h3 { margin:0 0 3px; font-family:Georgia,"Yu Mincho",serif; font-size:15px; font-weight:600; }
+.speaker-name p { margin:0; font-size:9px; color:#7b8987; }
+.alignment-chip { border-radius:99px; padding:5px 9px; font-size:9px; font-weight:800; white-space:nowrap; }
+.alignment-chip.same { background:rgba(82,123,107,.14); color:#3d6f5e; }
+.alignment-chip.different { background:rgba(232,111,76,.14); color:#b8532f; }
+.speaker-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+/* 「守る立場」と「問題視する立場」は正反対の思想なので、必ず出し分けます。
+   色でどちらが良い／悪いとは読ませないよう、地味な差にとどめること。 */
+.speaker-role { padding:4px 9px; border-radius:99px; font-size:9px; font-weight:800; background:#eef2ee; color:#4e615e; }
+.speaker-role.threat { background:#f4ece7; color:#8a6350; }
+/* どの観点（frame）から語ったか。役割チップと色で競わないよう、線だけで区別します。 */
+.speaker-frame { padding:4px 9px; border-radius:99px; font-size:9px; font-weight:800; border:1px solid rgba(24,55,51,.17); color:#5c6f6c; }
+/* その議員の中でこの観点がどれだけの比重か。高い／低いを色で善し悪しに見せないよう、
+   濃さだけで差を付けます（docs/design-constraints.md「中立性」）。 */
+/* こちらは囲いません。「立場」「観点」は分類のタグ、重視度はそこから測った量で、
+   性格が違うためです。囲いを外すと、狭い画面で3つ目が折り返す確率も下がります。
+
+   ★字の大きさは「重視度：」と値で揃えます。変えると縦位置が揃って見えません。
+   差は色だけで付けます。 */
+.speaker-level { display:inline-flex; align-items:center; padding:4px 2px; font-size:9px; line-height:1; font-weight:800; color:#8a9694; }
+.speaker-level strong { font-size:inherit; color:#7b8987; }
+.speaker-level.high strong { color:var(--green); }
+.speaker-level.mid strong { color:#5c6f6c; }
+/* 答弁の原文は畳んでおき、開いた人にだけ出します。まず「誰が・どう扱ったか」を
+   見比べられるようにするためで、開閉は <details> がやるので JS は要りません。 */
+.statement-fold { margin-top:2px; }
+/* 閉じているときは、サマリーの下パディングがカードの下余白に積み重なって
+   間延びして見えます。当たり判定の高さは保ったまま、食い込ませて詰めます。 */
+.statement-fold:not([open]) { margin-bottom:-8px; }
+/* 枠で囲わず、カードの白地にそのまま置きます。inline-flex なので
+   当たり判定は文字の幅ぶんだけ。負のマージンで文字列の左端を揃えています。 */
+.statement-fold>summary { list-style:none; cursor:pointer; user-select:none; display:inline-flex; align-items:center; gap:6px; margin-left:-6px; padding:8px 6px; color:var(--green); font-size:10px; font-weight:800; transition:opacity .15s; }
+.statement-fold>summary::-webkit-details-marker { display:none; }
+.statement-fold>summary:hover { opacity:.65; }
+.fold-count { color:#8a9694; font-weight:700; }
+/* 閉じているとき右向き（▸）、開くと下向き（▼）。 */
+.fold-chevron { flex:0 0 auto; transition:transform .2s; }
+.statement-fold[open] .fold-chevron { transform:rotate(90deg); }
+.statement { margin-top:6px; padding:11px 12px; border-radius:11px; background:#f6f4ed; }
+/* 畳まずに出す代表の1件。上の説明文から少し離します。 */
+.statement.featured { margin-top:12px; }
+.statement-meta { display:flex; align-items:center; gap:6px; color:var(--coral); font-size:8px; font-weight:800; letter-spacing:.07em; }
+.statement-meta time { margin-left:auto; color:#8a9694; font-weight:700; letter-spacing:0; }
+/* 開いたら全文を出します。要約ではなく実際の言葉を読むための場所なので畳みません。 */
+.statement-quote,.statement-summary { margin:7px 0 0; font-size:11px; line-height:1.85; color:#3d4f4c; }
+.statement-summary { color:#4e615e; font-style:italic; }
+.statement-link { display:inline-flex; align-items:center; gap:4px; margin-top:8px; font-size:9px; font-weight:800; color:var(--green); text-decoration:none; border-bottom:1px solid rgba(31,75,69,.25); }
 .demo-disclaimer { text-align:center; font-size:8px; line-height:1.7; color:rgba(255,255,255,.48); margin:13px 12px; }
+/* 論点ごとの断り書き。立場が分かれなかったときだけ出ます。 */
 .demo-disclaimer.dark-text { color:#8a9694; }
 .modal-cta { background:white; color:var(--green); box-shadow:none; }
 .profile-header { background:var(--green); color:white; padding:42px 20px 25px; text-align:center; }
@@ -207,5 +282,7 @@ button { color:inherit; }
 .empty-state svg { color:var(--coral); }
 .empty-state h2 { font-family:Georgia,"Yu Mincho",serif; font-size:17px; }
 .empty-state p { font-size:11px; color:#74827f; line-height:1.7; }
-@media (min-width:700px) { .app-shell { margin-top:20px; margin-bottom:20px; min-height:calc(100dvh - 40px); border-radius:24px; } .bottom-nav { bottom:0; border-radius:0 0 24px 24px; } .fab-layer { bottom:20px; } .back-layer { top:20px; } .match-modal { top:20px; bottom:20px; border-radius:24px; } }
+@media (min-width:700px) { .app-shell { margin-top:20px; margin-bottom:20px; min-height:calc(100dvh - 40px); border-radius:24px; } .bottom-nav { bottom:0; border-radius:0 0 24px 24px; } .fab-layer { bottom:20px; } .back-layer { top:20px; } /* 下は画面の端に合わせます。20px 空けると、その隙間から後ろの記事本文が覗いて
+   「モーダルが浮いている」ように見えるためです。上だけ app-shell に合わせます。 */
+.match-modal { bottom:0; height:calc(100dvh - 20px); border-radius:24px 24px 0 0; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }

@@ -2,11 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, Check, ChevronRight, Compass,
-  Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
+  ArrowLeft, Check, ChevronLeft, ChevronRight, Compass,
+  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
 } from "lucide-react";
-import { getAnswers, getArticles, getMatches, getProfileMatches, getUserProfileCells, saveAnswer } from "../lib/api";
-import type { Article, Match, ProfileMatchesResponse, SavedAnswer, UserProfileCell } from "../lib/types";
+import {
+  getAnswers, getArticles, getPerspectives, getProfileMatches, getUserProfileCells, saveAnswer,
+} from "../lib/api";
+import type {
+  Article, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement,
+  ProfileMatchesResponse, SavedAnswer, UserProfileCell,
+} from "../lib/types";
 import { DEFAULT_INTEREST, interestLabel } from "../lib/interest";
 import { OpinionSheet } from "./opinion-sheet";
 import { ProfileTrends } from "./profile-trends";
@@ -14,6 +19,12 @@ import { ProfileMatches } from "./profile-matches";
 import type { Answers } from "./question-block";
 
 type Screen = "feed" | "detail" | "profile";
+
+/** 設問への回答が一致するか。キーの順序に依存しないよう、中身で比べます。 */
+function sameSelections(a: Answers, b: Answers): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
 
 export default function HomePage() {
   const [screen, setScreen] = useState<Screen>("feed");
@@ -26,7 +37,9 @@ export default function HomePage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [saved, setSaved] = useState<Record<string, SavedAnswer>>({});
   const [modalOpen, setModalOpen] = useState(false);
-  const [matches, setMatches] = useState<Match[]>([]);
+  // 記事1件ぶんは B（/api/perspectives）。政治コンパスの総合マッチは C（/api/matches/profile）。
+  const [perspectives, setPerspectives] = useState<PerspectiveResult | null>(null);
+  const [perspectiveError, setPerspectiveError] = useState(false);
   const [profileMatchResult, setProfileMatchResult] = useState<ProfileMatchesResponse | null>(null);
   const [profileMatchesStatus, setProfileMatchesStatus] = useState<"loading" | "ready" | "error">("loading");
   const [profileCells, setProfileCells] = useState<UserProfileCell[]>([]);
@@ -160,6 +173,20 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [articles.length, screen, visibleCount]);
 
+  /**
+   * シートを閉じたあとも、入力は React の state に残ります。保存した内容と食い違って
+   * いれば「書きかけで保存していない」ということなので、FAB に印を出します。
+   *
+   * 保存すると `saved` が新しい回答に差し替わるので、この判定は自動的に false に戻ります。
+   * シートを開かずに戻った場合は初期値のままなので、差は出ません。
+   */
+  const savedAnswer = selected ? saved[selected.id] : undefined;
+  const hasUnsavedInput = Boolean(selected) && (
+    comment.trim() !== (savedAnswer?.comment ?? "")
+    || interest !== (savedAnswer?.interest ?? DEFAULT_INTEREST)
+    || !sameSelections(answers, savedAnswer?.selections ?? {})
+  );
+
   const openArticle = (article: Article) => {
     setSelected(article);
     setComment(saved[article.id]?.comment ?? "");
@@ -182,8 +209,17 @@ export default function HomePage() {
       });
       setSaved({ ...saved, [selected.id]: savedAnswer });
       setSheetOpen(false);
-      setMatches(await getMatches(selected.id));
+
+      // 議員の発言（evidence）は KV から数MB読むので、待たせずに先に開きます。
+      setPerspectives(null);
+      setPerspectiveError(false);
       setModalOpen(true);
+      void getPerspectives(selected.id)
+        .then(setPerspectives)
+        .catch((error: unknown) => {
+          console.error("Failed to load perspectives", error);
+          setPerspectiveError(true);
+        });
     } catch (error) {
       console.error("Failed to save answer", error);
     } finally {
@@ -194,7 +230,15 @@ export default function HomePage() {
   return (
     <main className="app-shell">
       {screen === "feed" && <Feed articles={articles.slice(0, visibleCount)} saved={saved} onOpen={openArticle} loadingMore={loadingMore} loadMoreRef={loadMoreRef} />}
-      {screen === "detail" && selected && <ArticleDetail article={selected} isSaved={Boolean(saved[selected.id])} onBack={() => setScreen("feed")} onOpenSheet={() => setSheetOpen(true)} />}
+      {screen === "detail" && selected && (
+        <ArticleDetail
+          article={selected}
+          isSaved={Boolean(savedAnswer)}
+          hasUnsavedInput={hasUnsavedInput}
+          onBack={() => setScreen("feed")}
+          onOpenSheet={() => setSheetOpen(true)}
+        />
+      )}
       {sheetOpen && selected && (
         <OpinionSheet
           article={selected}
@@ -211,7 +255,14 @@ export default function HomePage() {
       )}
       {screen === "profile" && <Profile matchResult={profileMatchResult} matchesStatus={profileMatchesStatus} savedCount={Object.keys(saved).length} cells={profileCells} cellsStatus={profileCellsStatus} />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
-      {modalOpen && selected && <MatchModal article={selected} matches={matches} onClose={() => setModalOpen(false)} />}
+      {modalOpen && selected && (
+        <PerspectiveModal
+          article={selected}
+          result={perspectives}
+          failed={perspectiveError}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
     </main>
   );
 }
@@ -272,8 +323,8 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
   );
 }
 
-function ArticleDetail({ article, isSaved, onBack, onOpenSheet }: {
-  article: Article; isSaved: boolean; onBack: () => void; onOpenSheet: () => void;
+function ArticleDetail({ article, isSaved, hasUnsavedInput, onBack, onOpenSheet }: {
+  article: Article; isSaved: boolean; hasUnsavedInput: boolean; onBack: () => void; onOpenSheet: () => void;
 }) {
   return (
     <div className="screen detail-screen">
@@ -296,10 +347,13 @@ function ArticleDetail({ article, isSaved, onBack, onOpenSheet }: {
       </article>
       <div className="fab-layer">
         <button
-          className={isSaved ? "fab saved" : "fab"}
+          // editing … 保存済み（色を反転）／ unsaved … 書きかけで保存していない（印を出す）
+          className={`fab${isSaved ? " editing" : ""}${hasUnsavedInput ? " unsaved" : ""}`}
           onClick={onOpenSheet}
-          aria-label={isSaved ? "この記事への意見を編集する" : "この記事への意見を書く"}
+          aria-label={`${isSaved ? "この記事への意見を編集する" : "この記事への意見を書く"}${hasUnsavedInput ? "（保存していない入力があります）" : ""}`}
         >
+          {/* アイコンは常に吹き出し。鉛筆にすると別の機能に見えるため、
+              保存済みかどうかは色の反転（.editing）で示します。 */}
           <MessageCircleMore size={26} />
         </button>
       </div>
@@ -307,38 +361,199 @@ function ArticleDetail({ article, isSaved, onBack, onOpenSheet }: {
   );
 }
 
-function MatchModal({ article, matches, onClose }: { article: Article; matches: Match[]; onClose: () => void }) {
+/**
+ * 議員のアバター色。`speaker_id` から決めるので、同じ議員はいつも同じ色になります。
+ * 「マッチ度」のような意味は持たせません（色で優劣を示さないため）。
+ */
+const AVATAR_COLORS = ["#527b6b", "#d57a4a", "#68759c", "#7a6a94", "#4d7f8c", "#a06a5c"];
+
+const avatarColor = (speakerId: string) => {
+  let hash = 0;
+  for (const char of speakerId) hash = (hash * 31 + char.charCodeAt(0)) % 9973;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+};
+
+/** このセル1つでの立場の比較。マッチ度ではないので%は出しません。 */
+const ALIGNMENT_LABEL: Record<PerspectivePolitician["alignment"], string | null> = {
+  same: "似た立場",
+  different: "異なる立場",
+  unclear: null,
+};
+
+/**
+ * B（意見保存直後のポップアップ）。
+ *
+ * 「あなたと何%似ています」は出しません。**いま答えた論点（frame × target）**を
+ * 議員が国会でどう語ってきたかを、発言の原文つきで並べます。
+ *
+ * ★自分の回答は出しません。合う意見だけを集める画面ではないためです。
+ *   「似た立場」と「異なる立場」を最低1人ずつ混ぜて3人出します
+ *   （選抜は API 側の classifyByCloseness → pickPoliticians）。
+ *
+ * 文面はすべて API 側のテンプレートで、引用は会議録の原文そのままです。
+ */
+function PerspectiveModal({ article, result, failed, onClose }: {
+  article: Article; result: PerspectiveResult | null; failed: boolean; onClose: () => void;
+}) {
+  const perspectives = result?.perspectives ?? [];
+
   return (
-    <div className="match-modal" role="dialog" aria-modal="true" aria-label="考えが近い政治家">
+    <div className="match-modal" role="dialog" aria-modal="true" aria-label="この論点についての議員の発言">
       <div className="modal-glow" />
       <header className="modal-header">
         <button className="round-button light" onClick={onClose} aria-label="閉じる"><X size={21} /></button>
-        <span>今回のマッチ</span><span className="step-label">1記事目</span>
+        <span>この論点の答弁</span>
+        <span className="step-label">{result ? `${perspectives.length}つの論点` : ""}</span>
       </header>
       <div className="modal-content">
         <div className="match-intro">
           <div className="sparkle"><Sparkles size={25} /></div>
-          <p className="eyebrow">YOUR PERSPECTIVE</p>
-          <h1>あなたと考えが近い<br />3人が見つかりました</h1>
-          <p>「{article.category}」への関心をもとに分析</p>
+          {/* 一覧が TODAY'S ISSUES、政治コンパスが MY PERSPECTIVE。
+              ここは国会会議録（公文書）の原文をそのまま出す画面なので PUBLIC RECORD。 */}
+          <p className="eyebrow">PUBLIC RECORD</p>
+          <h1>この観点をめぐる議員の答弁</h1>
+          <p>「{article.category}」の記事で選んだ見方をもとに、国会会議録から抽出</p>
         </div>
-        <div className="match-list">
-          {matches.map((match, index) => (
-            <div className="match-card" key={match.id}>
-              <div className="rank">0{index + 1}</div>
-              <div className="match-person">
-                <div className="politician-avatar" style={{ background: match.color }}>{match.initials}</div>
-                <div><h2>{match.name}</h2><p>{match.party}・{match.area}</p></div>
-                <div className="match-score"><strong>{match.score}</strong><span>%</span><small>マッチ</small></div>
-              </div>
-              <div className="score-track"><span style={{ width: `${match.score}%` }} /></div>
-              <div className="reason"><span>似ている理由</span><p>{match.reason}</p></div>
-            </div>
+
+        {!result && !failed && (
+          <div className="perspective-status"><span className="spinner light" />議員の発言を探しています</div>
+        )}
+        {failed && (
+          <div className="perspective-status">発言を取得できませんでした。時間をおいて試してください。</div>
+        )}
+        {/* 論点ごとの「見つかりませんでした」は各ブロックが出すので、ここは論点自体が無いときだけ。 */}
+        {result && perspectives.length === 0 && (
+          <div className="perspective-status">この記事の論点は、まだ議員の発言と結びついていません。</div>
+        )}
+
+        <div className="perspective-list">
+          {perspectives.map((perspective, index) => (
+            <PerspectiveBlock key={perspective.questionId} perspective={perspective} index={index} />
           ))}
         </div>
-        <p className="demo-disclaimer">表示される人物・政党・マッチ結果はすべてデモ用の架空データです。</p>
-        <button className="modal-cta" onClick={onClose}>ニュースに戻る <ChevronRight size={18} /></button>
       </div>
+
+      {/* 免責と戻るボタンは画面下部に固定します。中立性の断りは
+          スクロールで流れていってよいものではないためです。 */}
+      <div className="modal-footer">
+        {result && <p className="demo-disclaimer">{result.disclaimer}</p>}
+        <button className="modal-cta" onClick={onClose}><ChevronLeft size={18} /> ニュースに戻る</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 論点1つ ＝ 記事の設問1つ。見出しは frame × target で、`role` は議員ごとに違うので
+ * カード側に出します（設問の role で絞っていないため）。
+ */
+function PerspectiveBlock({ perspective, index }: { perspective: Perspective; index: number }) {
+  return (
+    <section className="perspective-block">
+      <header className="perspective-head">
+        <div className="rank">0{index + 1}</div>
+        <p className="perspective-eyebrow">論点</p>
+        <h2>{perspective.prompt}</h2>
+        {/* 論点は frame × target。role は議員ごとに違うので、カード側に出します。 */}
+        <div className="cell-chips">
+          <span className="cell-chip">{perspective.target}</span>
+          <span className="cell-chip frame">{perspective.frameLabel}</span>
+        </div>
+      </header>
+
+      {perspective.politicians.length === 0 ? (
+        <p className="perspective-empty">この観点で語った発言は見つかりませんでした。</p>
+      ) : (
+        <div className="speaker-list">
+          {/* 立場が分かれなかったときだけ断ります。カードが2枚しか出ない理由になるためです。 */}
+          {!perspective.positionsDivided && (
+            <p className="speaker-list-note">この観点では、議員の立場に違いがありませんでした。</p>
+          )}
+          {perspective.politicians.map((politician) => (
+            <SpeakerCard
+              key={`${politician.speakerId}-${politician.role}`}
+              politician={politician}
+              target={perspective.target}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** 同じ議員が role 違いで2枚出ることがあります（守る立場でも問題視する立場でも語った場合）。 */
+function SpeakerCard({ politician, target }: { politician: PerspectivePolitician; target: string }) {
+  const alignment = ALIGNMENT_LABEL[politician.alignment];
+  // 先頭が代表の1件。どれが来るかは API 側で毎回変わります。
+  const [featured, ...rest] = politician.statements;
+
+  return (
+    <article className="speaker-card">
+      <div className="speaker-row">
+        <div className="politician-avatar" style={{ background: avatarColor(politician.speakerId) }}>
+          {politician.politicianName.slice(0, 1)}
+        </div>
+        <div className="speaker-name">
+          <h3>{politician.politicianName}</h3>
+          <p>{politician.party}</p>
+        </div>
+        {alignment && <span className={`alignment-chip ${politician.alignment}`}>{alignment}</span>}
+      </div>
+
+      {/* ★role は消さないこと。「守る立場」と「問題視する立場」は正反対の思想で、
+          畳むと外国人・移民を支援対象として語る議員と脅威として語る議員が同じに見えます。 */}
+      <div className="speaker-tags">
+        <span className={`speaker-role ${politician.role}`}>{target}を{politician.roleLabel}</span>
+        <span className="speaker-frame">{politician.stanceText}</span>
+        {/* その議員の中でこの観点がどれだけの比重か。タグ2つとは性格が違うので囲いません。 */}
+        {politician.mentionLevelLabel && (
+          <span className={`speaker-level ${politician.mentionLevel}`}>
+            重視度：<strong>{politician.mentionLevelLabel}</strong>
+          </span>
+        )}
+      </div>
+
+      {/* 代表の1件だけを畳まずに出します。まず実際の言葉に触れてもらい、
+          残りは読みたい人が開く形にします。どれが代表になるかは API 側で毎回変わります。 */}
+      {featured && <StatementCard statement={featured} featured />}
+
+      {/* JS の状態を持たない <details> なので、描画直後から開閉できます。 */}
+      {rest.length > 0 && (
+        <details className="statement-fold">
+          {/* 開いていないときは右向き、開くと下向き。開閉の向きは CSS の回転で出します。 */}
+          <summary>
+            <ChevronRight size={13} className="fold-chevron" />
+            その他の答弁
+            <span className="fold-count">{rest.length}件</span>
+          </summary>
+          <div className="statement-list">
+            {rest.map((statement, index) => (
+              <StatementCard key={`${statement.url ?? "no-url"}-${index}`} statement={statement} />
+            ))}
+          </div>
+        </details>
+      )}
+    </article>
+  );
+}
+
+/** 答弁1件。原文を出せるのは会議録（公文書）だけで、公式サイト由来は要約とリンクに留めます。 */
+function StatementCard({ statement, featured = false }: { statement: PerspectiveStatement; featured?: boolean }) {
+  return (
+    <div className={featured ? "statement featured" : "statement"}>
+      <div className="statement-meta">
+        <span>{statement.quotable ? "国会会議録" : "公式HP"}</span>
+        {statement.date && <time>{statement.date}</time>}
+      </div>
+      {statement.quotable && statement.excerpt
+        ? <p className="statement-quote">{statement.excerpt}</p>
+        : <p className="statement-summary">{statement.summary}</p>}
+      {statement.url && (
+        <a className="statement-link" href={statement.url} target="_blank" rel="noreferrer">
+          出典を読む <ExternalLink size={11} />
+        </a>
+      )}
     </div>
   );
 }

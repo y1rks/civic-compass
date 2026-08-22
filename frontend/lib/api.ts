@@ -1,4 +1,6 @@
-import type { Article, Match, ProfileMatchesResponse, SavedAnswer, UserProfileCell } from "./types";
+import type {
+  Article, Match, PerspectiveResult, ProfileMatchesResponse, SavedAnswer, UserProfileCell,
+} from "./types";
 
 type ArticlesResponse = {
   articles: Article[];
@@ -64,6 +66,21 @@ export async function saveAnswer(input: {
   return data.answer;
 }
 
+/**
+ * B（意見保存直後のポップアップ）。直前に保存した意見の論点ごとに、
+ * 議員が国会でどう語ってきたかを返します。
+ *
+ * 取得できるのは保存済みの記事だけなので、保存の直後に呼びます。
+ */
+export async function getPerspectives(articleId: string): Promise<PerspectiveResult> {
+  return await requestJson<PerspectiveResult>(
+    `/api/perspectives/${encodeURIComponent(articleId)}`,
+    undefined,
+    "議員の発言の取得に失敗しました",
+  );
+}
+
+/** 記事単位のデモ用マッチ。B に置き換わりましたが、API は残っています。 */
 export async function getMatches(articleId: string): Promise<Match[]> {
   const data = await requestJson<ArticleMatchesResponse>(
     `/api/matches/${encodeURIComponent(articleId)}`,
