@@ -194,16 +194,7 @@ button { color:inherit; }
 .trend-card h2 { margin:1px 0 5px; font-family:Georgia,"Yu Mincho",serif; font-size:14px; }
 .trend-card-head p { margin:0; color:#667875; font-size:9px; line-height:1.65; }
 .trend-card-head p strong { color:var(--ink); }
-.trend-score-chart { position:relative; height:35px; margin-top:11px; padding-top:17px; }
-.trend-chart-label { position:absolute; top:0; color:#8a9795; font-size:8px; }
-.trend-chart-label.left { left:0; }
-.trend-chart-label.right { right:0; }
-.trend-chart-axis { position:absolute; top:18px; bottom:4px; left:50%; width:1px; background:#aeb8b5; }
-.trend-score-chart::after { content:""; position:absolute; top:23px; left:0; right:0; height:3px; border-radius:3px; background:#edf0ed; }
-.trend-chart-fill { position:absolute; z-index:1; top:23px; height:3px; }
-.trend-chart-fill.positive { left:50%; background:var(--coral); border-radius:0 3px 3px 0; }
-.trend-chart-fill.negative { right:50%; background:#397a89; border-radius:3px 0 0 3px; }
-.trend-score-note { margin:2px 0 0; font-size:10px; font-weight:800; }
+.trend-score-note { margin:11px 0 0 33px; font-size:10px; font-weight:800; }
 .trend-score-note.positive { color:var(--coral); }
 .trend-score-note.negative { color:#397a89; }
 .trend-score-help { margin:10px 3px 0; color:#84918f; font-size:8px; line-height:1.65; }

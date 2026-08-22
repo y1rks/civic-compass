@@ -38,6 +38,7 @@ test("上位セルの組み合わせと傾向を日本語で表示する", () =>
   assert.match(html, /この価値を強く優先する傾向/);
   assert.match(html, /政策への賛否ではなく/);
   assert.doesNotMatch(html, /[+-]\d\.\d{2}/);
+  assert.doesNotMatch(html, /trend-score-chart|trend-chart-fill|この価値を重視/);
 });
 
 test("傾向の強さを3段階で表示する", () => {

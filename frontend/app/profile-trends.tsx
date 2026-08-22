@@ -52,19 +52,6 @@ export function ProfileTrends({
                     <p><strong>{cell.target}</strong>を「{ROLE_LABELS[cell.role]}」として捉える</p>
                   </div>
                 </div>
-                <div
-                  className="trend-score-chart"
-                  role="img"
-                  aria-label={tendencyText(score)}
-                >
-                  <span className="trend-chart-label left">ほかの価値を優先</span>
-                  <span className="trend-chart-label right">この価値を重視</span>
-                  <span className="trend-chart-axis" />
-                  <span
-                    className={`trend-chart-fill ${direction}`}
-                    style={{ width: `${Math.abs(score) * 50}%` }}
-                  />
-                </div>
                 <p className={`trend-score-note ${direction}`}>{tendencyText(score)}</p>
               </article>
             );
