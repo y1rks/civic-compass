@@ -291,7 +291,7 @@ export const answers = sqliteTable(
       .references(() => articles.id),
 
     /**
-     * このニュースへの関心度（0 / 0.5 / 1）。
+     * このニュースへの関心度（0 / 0.33 / 0.66 / 1）。段階は frontend/lib/interest.ts が正。
      * 寄与 w = intensity × confidence × interest の interest にあたり、
      * 議員側の weight（答弁の本人度）と同じ位置に入ります。
      * 0 なら寄与が 0 になるので cells には入りませんが、レコードは残します。

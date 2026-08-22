@@ -25,7 +25,7 @@ button { color:inherit; }
 .section-heading>span { color:#82908e; font-weight:600; font-size:10px; }
 .live-dot { width:7px; height:7px; background:var(--coral); border-radius:50%; box-shadow:0 0 0 4px rgba(232,111,76,.12); }
 .article-list { display:grid; gap:12px; }
-.article-card { width:100%; background:#fff; padding:0; border:1px solid rgba(24,55,51,.06); border-radius:16px; overflow:hidden; text-align:left; display:grid; grid-template-columns:116px 1fr; cursor:pointer; box-shadow:0 3px 16px rgba(26,49,45,.045); transition:transform .18s,box-shadow .18s; }
+.article-card { position:relative; width:100%; background:#fff; padding:0; border:1px solid rgba(24,55,51,.06); border-radius:16px; overflow:hidden; text-align:left; display:grid; grid-template-columns:116px 1fr; cursor:pointer; box-shadow:0 3px 16px rgba(26,49,45,.045); transition:transform .18s,box-shadow .18s; }
 .article-card:active { transform:scale(.985); }
 .article-card.featured { display:block; }
 .article-image-wrap { position:relative; min-height:126px; overflow:hidden; }
@@ -34,9 +34,17 @@ button { color:inherit; }
 .article-card:hover .article-image { transform:scale(1.025); }
 .top-story,.saved-badge { position:absolute; top:10px; left:10px; border-radius:99px; padding:5px 9px; font-size:10px; font-weight:800; }
 .top-story { background:var(--coral); color:white; }
-.saved-badge { left:auto; right:10px; background:rgba(248,246,239,.94); color:var(--green); display:flex; gap:4px; align-items:center; }
-/* 「関心がない」で保存した記事。答えてはいるが関心はない、と分かる見た目にする。 */
+/* バッジは画像の中ではなく**カードの右上**。写真の明暗に文字の可読性が左右されないため。
+   カードの外に出た絶対配置なのでグリッドの列には影響しない。 */
+.saved-badge { left:auto; right:10px; background:#f4f6f3; border:1px solid var(--line); color:var(--green); display:flex; gap:4px; align-items:center; }
+/* 「関心なし」で保存した記事。答えてはいるが関心はない、と分かる見た目にする。 */
 .saved-badge.muted { color:#7d8b88; }
+/* 注目記事は画像が全幅なので、右上でも文字とぶつからない。
+   横並びのカードは右半分が本文なので、左上（＝画像の上）に置く。
+   背景は不透明なので、写真の上でも白いカードの上でも読める。 */
+/* 画像の列は 116px しかないので、角に寄せて少し小さくし、はみ出さないようにする。
+   いちばん長い「あまり関心なし」でも右端 107px に収まる。 */
+.article-card:not(.featured) .saved-badge { top:7px; left:7px; right:auto; padding:4px 8px; gap:3px; }
 .article-body { padding:14px 14px 12px; min-width:0; display:flex; flex-direction:column; }
 .featured .article-body { padding:17px 17px 16px; }
 .article-meta,.article-source { display:flex; align-items:center; gap:7px; color:#798885; font-size:9px; }
@@ -94,15 +102,39 @@ button { color:inherit; }
 .optional-mark { color:#8b9895; font-size:11px; font-weight:600; }
 .question-progress { flex:none; padding:4px 9px; border-radius:99px; background:#fff; border:1px solid var(--line); color:#74827f; font-size:10px; font-weight:800; }
 
-/* 関心度。寄与 w に掛かるので、選ばせる前提で既定値を「気になる」にしてある。 */
-.interest-levels { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
-.interest-level { padding:13px 4px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#5d6f6c; font-size:11px; font-weight:700; cursor:pointer; transition:border-color .15s,background .15s; }
-.interest-level.selected { border-color:var(--coral); background:#fdf2ee; color:var(--ink); }
+/* 関心度。寄与 w に掛かるので、選ばせる前提で既定値を「関心あり」にしてある。
+   4段階を1本の軸にしているのは、ボタンを並べると段階だと伝わらないため。
+
+   ★軸の両端は、左右端のラベルの中央に揃える。
+     ラベルは中央がつまみの中心に来るよう絶対配置しているので、軸の端を
+     「両端ラベルの半分の幅」だけ内側に置けば、中央が軸の端の真上に来て、
+     かつラベルが枠からはみ出さない。両端は「関心なし」「関心あり」の4文字で、
+     日本語は 1文字 = 1em なので半分は 2em。ラベルの文言を変えるならここも直す。
+
+   ★input のトラックは透明にし、見えている軸は .interest-track だけにする。
+     つまみは端で半分内側に入るので、input を左右につまみ半分ぶんはみ出させて
+     **つまみの中心が軸の端まで届く**ようにしている。 */
+.interest-slider { --interest-thumb:22px; --interest-label:10px; --interest-edge:calc(var(--interest-label) * 2); --interest-bar:6px; position:relative; padding-top:3px; }
+.interest-track { position:absolute; top:calc(3px + (var(--interest-thumb) - var(--interest-bar)) / 2); left:var(--interest-edge); right:var(--interest-edge); height:var(--interest-bar); border-radius:99px; pointer-events:none; background:linear-gradient(to right,var(--coral) 0 var(--interest-fill),rgba(24,55,51,.12) var(--interest-fill) 100%); }
+.interest-range { -webkit-appearance:none; appearance:none; position:relative; display:block; height:var(--interest-thumb); margin:0 0 0 calc(var(--interest-edge) - var(--interest-thumb) / 2); width:calc(100% - var(--interest-edge) * 2 + var(--interest-thumb)); background:transparent; cursor:pointer; }
+.interest-range:focus { outline:none; }
+.interest-range::-webkit-slider-runnable-track { height:var(--interest-bar); background:transparent; }
+.interest-range::-moz-range-track { height:var(--interest-bar); background:transparent; }
+.interest-range::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:var(--interest-thumb); height:var(--interest-thumb); margin-top:calc((var(--interest-bar) - var(--interest-thumb)) / 2); border-radius:50%; background:#fff; border:2px solid var(--coral); box-shadow:0 1px 4px rgba(22,44,40,.22); }
+.interest-range::-moz-range-thumb { width:var(--interest-thumb); height:var(--interest-thumb); box-sizing:border-box; border-radius:50%; background:#fff; border:2px solid var(--coral); box-shadow:0 1px 4px rgba(22,44,40,.22); }
+.interest-range:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 4px rgba(232,111,76,.24); }
+.interest-range:focus-visible::-moz-range-thumb { box-shadow:0 0 0 4px rgba(232,111,76,.24); }
+
+/* ラベルは目盛りそのもの。中央をつまみの中心に合わせる（位置は tsx 側の at()）。 */
+.interest-labels { position:relative; height:17px; margin-top:7px; }
+.interest-label { position:absolute; top:0; transform:translateX(-50%); padding:0; border:0; background:none; color:#8b9895; font-size:var(--interest-label); font-weight:600; line-height:17px; white-space:nowrap; cursor:pointer; transition:color .15s; }
+.interest-label.selected { color:var(--coral); font-weight:800; }
 
 /* 争点の選択肢。stance は文面が担うので、ラベルとしては出さない。 */
 .question-card { border:0; margin:0 0 14px; padding:0; min-width:0; }
 .question-card:last-child { margin-bottom:0; }
 .question-card legend { padding:0; font-size:12px; font-weight:800; line-height:1.7; }
+.question-number { color:var(--coral); }
 .option-list { display:grid; gap:7px; margin-top:10px; }
 .option { position:relative; display:grid; grid-template-columns:20px 1fr; gap:10px; align-items:start; padding:12px 13px; border:1px solid var(--line); border-radius:12px; background:#fff; cursor:pointer; transition:border-color .15s,background .15s; }
 .option:hover { border-color:rgba(24,55,51,.26); }
@@ -204,10 +236,10 @@ button { color:inherit; }
 .speaker-frame { padding:4px 9px; border-radius:99px; font-size:9px; font-weight:800; border:1px solid rgba(24,55,51,.17); color:#5c6f6c; }
 /* その議員の中でこの観点がどれだけの比重か。高い／低いを色で善し悪しに見せないよう、
    濃さだけで差を付けます（docs/design-constraints.md「中立性」）。 */
-/* こちらは囲いません。「立場」「観点」は分類のタグ、重視度はそこから測った量で、
+/* こちらは囲いません。「立場」「観点」は分類のタグ、言及度はそこから測った量で、
    性格が違うためです。囲いを外すと、狭い画面で3つ目が折り返す確率も下がります。
 
-   ★字の大きさは「重視度：」と値で揃えます。変えると縦位置が揃って見えません。
+   ★字の大きさは「言及度：」と値で揃えます。変えると縦位置が揃って見えません。
    差は色だけで付けます。 */
 .speaker-level { display:inline-flex; align-items:center; padding:4px 2px; font-size:9px; line-height:1; font-weight:800; color:#8a9694; }
 .speaker-level strong { font-size:inherit; color:#7b8987; }
@@ -262,18 +294,42 @@ button { color:inherit; }
 .profile-score small { font-size:9px; }
 .profile-trends { margin-top:26px; }
 .profile-trends-heading { margin-bottom:7px; }
-.profile-trends-intro { margin:0 3px 13px; color:#6b7c79; font-size:10px; line-height:1.7; }
-.trend-list { display:grid; gap:9px; }
-.trend-card { padding:15px 14px 13px; border:1px solid var(--line); border-radius:14px; background:#fff; box-shadow:0 3px 15px rgba(26,49,45,.04); }
-.trend-card-head { display:grid; grid-template-columns:24px minmax(0,1fr); gap:9px; align-items:start; }
-.trend-rank { width:23px; height:23px; display:grid; place-items:center; border-radius:50%; background:var(--mint); color:var(--green); font-family:Georgia,serif; font-size:11px; font-weight:700; }
-.trend-card h2 { margin:1px 0 5px; font-family:Georgia,"Yu Mincho",serif; font-size:14px; }
-.trend-card-head p { margin:0; color:#667875; font-size:9px; line-height:1.65; }
-.trend-card-head p strong { color:var(--ink); }
-.trend-score-note { margin:11px 0 0 33px; font-size:10px; font-weight:800; }
-.trend-score-note.positive { color:var(--coral); }
-.trend-score-note.negative { color:#397a89; }
-.trend-score-help { margin:10px 3px 0; color:#84918f; font-size:8px; line-height:1.65; }
+.profile-trends-intro { margin:0 3px 10px; color:#6b7c79; font-size:10px; line-height:1.7; }
+.trend-list { display:grid; gap:8px; }
+
+/* カードは「順位 / 中身」の2列グリッド。行の間隔をグリッドに持たせて、
+   個々の要素に margin を積まない（要素を足すたびに余白が崩れるため）。 */
+.trend-card { display:grid; grid-template-columns:23px minmax(0,1fr); column-gap:10px; row-gap:11px; padding:13px 13px 12px; border:1px solid var(--line); border-radius:14px; background:#fff; box-shadow:0 3px 15px rgba(26,49,45,.04); }
+.trend-rank { align-self:center; width:23px; height:23px; display:grid; place-items:center; border-radius:50%; background:var(--mint); color:var(--green); font-family:Georgia,serif; font-size:11px; font-weight:700; }
+
+/* 「観点 × 立場」の1行。狭い画面では立場側が次の行に落ちる。
+   チップの見た目は議員カードの speaker-frame / speaker-role と揃える
+   （同じ frame × target × role を指すものなので、画面をまたいで同じ見え方にする）。 */
+.trend-title { grid-column:2; display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0; font-size:11px; font-weight:400; }
+.trend-frame { padding:4px 10px; border-radius:99px; border:1px solid rgba(24,55,51,.17); color:#5c6f6c; font-size:11px; font-weight:800; }
+.trend-cross { color:#a7b3b0; font-size:10px; }
+.trend-stance { padding:4px 10px; border-radius:99px; background:#eef2ee; color:#4e615e; font-size:11px; font-weight:800; }
+.trend-stance.threat { background:#f4ece7; color:#8a6350; }
+
+/* 要点と例はひとまとまり。見出し（チップ）との間より内側を詰める。 */
+.trend-body { grid-column:2; display:grid; gap:6px; }
+
+/* ★score の符号で色を変えない。向きを色で示すと、その色自体が評価に見えるため
+   （docs/design-constraints.md「ラベルで断定表示しない」）。向きは文面が担う。
+   マーカーは全カード同じ色。「主役の1行」を示すだけで、良し悪しは含まない。 */
+.trend-lead { margin:0; color:var(--ink); font-size:12px; font-weight:800; line-height:1.75; }
+.trend-lead span { background:linear-gradient(transparent 62%,rgba(232,111,76,.26) 62%); }
+
+/* その考え方をとる人の言い分の例。議員の実際の発言ではないので出典は付けない。
+   囲って「例」と明示するのは、要点の続き（＝あなたはこう言った）と読まれないため。 */
+/* ラベルは箇条書きの左に置く。上に積むと「例」の1行ぶんだけ枠が高くなるため。 */
+.trend-examples { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:9px; padding:6px 15px 7px 10px; border-radius:10px; background:#f6f7f4; }
+.trend-examples-label { align-self:start; margin-top:2px; padding:1px 7px; border-radius:99px; background:#fff; border:1px solid var(--line); color:#7b8987; font-size:8px; font-weight:800; letter-spacing:.1em; }
+.trend-examples ul { margin:0; padding:0; list-style:none; display:grid; gap:1px; }
+.trend-examples li { position:relative; padding-left:11px; color:#5f706d; font-size:10px; line-height:1.55; }
+.trend-examples li::before { content:""; position:absolute; left:3px; top:.58em; width:3px; height:3px; border-radius:50%; background:#b3c0bd; }
+
+.trend-score-help { margin:8px 3px 0; color:#84918f; font-size:8px; line-height:1.65; }
 .trends-message { padding:24px 18px; border:1px dashed rgba(24,55,51,.2); border-radius:13px; background:rgba(255,255,255,.55); color:#74827f; text-align:center; font-size:10px; line-height:1.7; }
 .profile-privacy { margin-top:20px; padding:15px; display:flex; gap:11px; background:var(--mint); border-radius:13px; }
 .profile-privacy strong { font-size:11px; }

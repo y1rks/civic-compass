@@ -34,9 +34,11 @@ export function QuestionBlock({ questions, answers, onAnswer }: {
         <strong>考えに近いものを選んでください。<span className="required-mark">（必須選択）</span></strong>
         <span className="question-progress">{answered}/{questions.length}</span>
       </div>
-      {questions.map((question) => (
+      {questions.map((question, order) => (
         <fieldset className="question-card" key={question.id}>
-          <legend>{question.prompt}</legend>
+          {/* 番号は表示順から出します。設問の並びは article_questions.display_order が正で、
+              保存時のキーは question.id なので、番号を振っても回答の対応関係は変わりません。 */}
+          <legend><span className="question-number">Q{order + 1}.</span> {question.prompt}</legend>
           <div className="option-list">
             {question.options.map((option) => {
               const selected = answers[question.id] === option.stance;

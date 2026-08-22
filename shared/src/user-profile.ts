@@ -7,6 +7,7 @@ import {
   smoothedShare,
   stanceSign,
   stanceWeight,
+  USER_SHARE_PRIOR,
 } from "./scoring.ts";
 
 /**
@@ -105,7 +106,7 @@ export function aggregateUserProfile(rows: SelectionRow[], userId: string, now: 
     cell.n += 1;
     cell.num += stanceSign(row.stance) * w * sw;
     cell.denScore += w * sw;
-    // share は素の寄与で出す。override の増幅を持ち込むと重視度が歪むため。
+    // share は素の寄与で出す。override の増幅を持ち込むと言及度が歪むため。
     cell.den += w;
     cells.set(key, cell);
   }
@@ -132,7 +133,10 @@ export function aggregateUserProfile(rows: SelectionRow[], userId: string, now: 
         target: cell.target,
         role: cell.role,
         score: cell.denScore > 0 ? round(cell.num / cell.denScore) : 0,
-        share: round(smoothedShare(cell.den, totalWeight, cellCount)),
+        // 擬似寄与はユーザー側の値を使います。議員側の 4.0 を当てると
+        // 1回答の寄与（≦0.63）が押し切られ、share がほぼ均等に潰れます
+        // （＝何を重視したかがマッチに効かなくなる）。scoring.ts の USER_SHARE_PRIOR 参照。
+        share: round(smoothedShare(cell.den, totalWeight, cellCount, USER_SHARE_PRIOR)),
         n: cell.n,
       }))
       .sort((a, b) => b.share - a.share),

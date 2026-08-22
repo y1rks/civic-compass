@@ -13,8 +13,17 @@ const userProfile = new Hono<AppEnv>();
 
 type ProfileCell = UserProfile["cells"][number];
 
+/**
+ * 表示順は `score`（その価値をどれだけ強く優先したか）の降順。
+ *
+ * ⚠ `score` は同点になりやすい。設問1問につき1セルなので、いまの設問カタログでは
+ *   `score` は uphold なら +1、override なら −1 の2値にしかならない（同じセルを
+ *   複数の記事で問うようになると初めて中間値が出る）。同点は `share`（言及度）で
+ *   割り、それでも並ばないときだけセルキーの辞書順で固定する。
+ */
 const compareCells = (a: ProfileCell, b: ProfileCell): number =>
-  b.share - a.share
+  b.score - a.score
+  || b.share - a.share
   || a.frame.localeCompare(b.frame)
   || a.target.localeCompare(b.target, "ja")
   || a.role.localeCompare(b.role);
@@ -33,7 +42,7 @@ const isProfileCell = (value: unknown): value is ProfileCell => {
     && typeof cell.n === "number" && Number.isFinite(cell.n);
 };
 
-/** 現在のユーザーがよく使う考え方を、重視度（share）の上位3件に絞って返します。 */
+/** 現在のユーザーがよく使う考え方を、`score` の上位3件に絞って返します。 */
 userProfile.get("/", async (c) => {
   const raw = await c.env.USER_PROFILES.get(userProfileKey(CURRENT_USER_ID));
   if (raw === null) return c.json({ cells: [] });

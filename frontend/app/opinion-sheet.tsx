@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, type PointerEvent } from "react";
+import { useRef, type CSSProperties, type PointerEvent } from "react";
 import { LockKeyhole, MessageCircle, MessageCircleMore } from "lucide-react";
 import type { Article, ArticleQuestionOption } from "../lib/types";
-import { INTEREST_LEVELS } from "../lib/interest";
+import { INTEREST_LEVELS, interestIndex } from "../lib/interest";
 import { QuestionBlock, isAnswerComplete, type Answers } from "./question-block";
 
 export function OpinionSheet({
@@ -66,19 +66,7 @@ export function OpinionSheet({
         <div className="sheet-body">
           <section className="sheet-section">
             <div className="sheet-section-head"><strong>このニュースへの関心度</strong></div>
-            <div className="interest-levels">
-              {INTEREST_LEVELS.map((level) => (
-                <button
-                  type="button"
-                  key={level.value}
-                  className={interest === level.value ? "interest-level selected" : "interest-level"}
-                  aria-pressed={interest === level.value}
-                  onClick={() => onInterest(level.value)}
-                >
-                  {level.label}
-                </button>
-              ))}
-            </div>
+            <InterestSlider value={interest} onChange={onInterest} />
           </section>
 
           <QuestionBlock questions={article.questions} answers={answers} onAnswer={onAnswer} />
@@ -109,5 +97,58 @@ export function OpinionSheet({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * 関心度の入力。4段階を目盛りとして持つスライダーです。
+ *
+ * ボタンを4つ並べると選択肢の羅列に見えて段階だと伝わらないので、1本の軸にしています。
+ * `input[type=range]` を使うのはドラッグとキーボード（矢印キー）を自前で書かないため。
+ * ただし値そのものではなく**添字**を持たせます。0.33 刻みを step にすると
+ * 浮動小数の誤差で右端が選べなくなるためです。
+ *
+ * ★レイアウトの決めごと：**軸の両端は左右端のラベルの中央**に来ます。
+ *   ラベルは全部つまみの中心に合わせた絶対配置で、軸の端は枠から
+ *   `--interest-edge`（両端ラベルの半分の幅）だけ内側。こうすると両端のラベルが
+ *   枠にちょうど収まり、かつ中央が軸の端の真上に来ます。globals.css 側に計算があります。
+ *
+ *   位置をインラインで持たせているのは、段階を増やしたときに CSS 側の
+ *   nth-child が黙って古いままになるのを避けるためです。段階数は必ずこの配列が正。
+ */
+function InterestSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const index = interestIndex(value);
+  const last = INTEREST_LEVELS.length - 1;
+  const at = (i: number) => `calc(var(--interest-edge) + (100% - var(--interest-edge) * 2) * ${i} / ${last})`;
+
+  return (
+    <div className="interest-slider" style={{ "--interest-fill": `${(index / last) * 100}%` } as CSSProperties}>
+      <div className="interest-track" aria-hidden="true" />
+      <input
+        type="range"
+        className="interest-range"
+        min={0}
+        max={last}
+        step={1}
+        value={index}
+        onChange={(event) => onChange(INTEREST_LEVELS[Number(event.target.value)].value)}
+        aria-label="このニュースへの関心度"
+        aria-valuetext={INTEREST_LEVELS[index].label}
+      />
+      <div className="interest-labels">
+        {INTEREST_LEVELS.map((level, i) => (
+          <button
+            type="button"
+            key={level.value}
+            className={i === index ? "interest-label selected" : "interest-label"}
+            style={{ left: at(i) } as CSSProperties}
+            aria-pressed={i === index}
+            onClick={() => onChange(level.value)}
+          >
+            {level.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

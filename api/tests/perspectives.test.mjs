@@ -108,7 +108,7 @@ const evidence = {
 };
 
 /**
- * 【2】議員プロファイル。重視度は **その議員自身の share の分布** から決めるので、
+ * 【2】議員プロファイル。言及度は **その議員自身の share の分布** から決めるので、
  * cellidx だけでは判定できない（share は本人の全セルで合計1.0になる比率で、
  * 大きさがセル数に依存するため）。
  */
@@ -360,7 +360,7 @@ test("国会会議録の発言は原文を返し、公式サイト由来は要�
   assert.equal(webOne.summary, "自然環境への配慮を訴えた");
 });
 
-test("重視度は、その議員自身の share の中央値との比で決める", async () => {
+test("言及度は、その議員自身の share の中央値との比で決める", async () => {
   // P00001 の share 分布は 0.010 / 0.020 / 0.050 で中央値 0.020。
   // 固定のしきい値だと、セル数の少ない議員が何でも「高」になってしまう。
   const cases = [
@@ -384,7 +384,7 @@ test("重視度は、その議員自身の share の中央値との比で決め�
   }
 });
 
-test("プロファイルを読めなければ重視度は出さない", async () => {
+test("プロファイルを読めなければ言及度は出さない", async () => {
   const index = {
     ...cellIndex,
     "cellidx:care_harm|自然環境|threat": [],
@@ -425,7 +425,7 @@ test("KV は表示する議員の分しか読まない（候補を全員読ま�
   // 候補は7人いるが、読むのは表示する議員の分だけ（論点をまたぐ重複は除く）
   assert.equal(evidenceReads.length, shown.size);
   assert.equal(evidenceReads.length <= 4, true, `evidence を ${evidenceReads.length} 件読んでいる`);
-  // プロファイル本体は重視度の判定に要る。読むのは evidence と同じ議員の分だけ
+  // プロファイル本体は言及度の判定に要る。読むのは evidence と同じ議員の分だけ
   assert.deepEqual(profileReads.sort(), [...shown].map((id) => `profile:${id}`).sort());
 });
 

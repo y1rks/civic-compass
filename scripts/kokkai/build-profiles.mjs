@@ -137,7 +137,7 @@ function buildPolitician(master, utterances, minN) {
         const cell = cells.get(key);
         const w = contribution(u, f);
         // share は素の寄与で、score は override を増幅した寄与で出す。
-        // 「どれだけ語ったか」に override の増幅を持ち込むと、重視度が歪むため分けている。
+        // 「どれだけ語ったか」に override の増幅を持ち込むと、言及度が歪むため分けている。
         const sw = stanceWeight(f.stance, kOverride);
         cell.n += 1;
         cell.num += sign(f.stance) * w * sw;

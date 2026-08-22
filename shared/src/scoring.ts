@@ -44,7 +44,7 @@ export function stanceSign(stance: string): number {
   return stance === "uphold" ? 1 : stance === "override" ? -1 : 0;
 }
 
-/** score の分子・分母では override を増幅する。share には掛けない（重視度が歪むため）。 */
+/** score の分子・分母では override を増幅する。share には掛けない（言及度が歪むため）。 */
 export function stanceWeight(stance: string, kOverride: number): number {
   return stance === "override" ? kOverride : 1;
 }
@@ -66,13 +66,68 @@ export function overrideRateOf(counts: { uphold: number; override: number }): nu
 // 不当に高いスコアを取る。擬似的な寄与を足して、観測が薄いうちは
 // 均等分布（1/セル数）側に引き戻す。
 
-/** 擬似寄与。実測の「1セルあたり平均寄与」3〜8 の下限側に合わせた */
+/** 議員側の擬似寄与。実測の「1セルあたり平均寄与」3〜14 の下限側に合わせた */
 export const SHARE_PRIOR = 4.0;
 
-/** 平滑化した share。`totalWeight` は全セルの寄与合計、`cellCount` はセル数。 */
-export function smoothedShare(weight: number, totalWeight: number, cellCount: number): number {
-  const denominator = totalWeight + SHARE_PRIOR * cellCount;
-  return denominator > 0 ? (weight + SHARE_PRIOR) / denominator : 0;
+/**
+ * ユーザー側の擬似寄与。**議員側と同じ 4.0 を使ってはいけません。**
+ *
+ * 擬似寄与は「実データの寄与と同じ単位」なので、両側で同じ値にすると
+ * スケールが揃うのではなく、**寄与の小さい側だけが潰れます**。
+ *
+ *   議員   1セルあたりの寄与 3〜14（実測15人）        → PRIOR 4.0 は同程度。ほどよく効く
+ *   ユーザー 1回答の寄与は 0.7 × 0.9 × interest ≦ 0.63 → PRIOR 4.0 だと擬似寄与が実データを押し切る
+ *
+ * 現行の設問カタログ（8記事15設問）は**セルの重複が1つもない**ので、ユーザーのセルは
+ * 必ず `n = 1`、寄与は 1件ぶんだけになります。つまり share の差を作れるのは interest だけで、
+ * 生の比は最大 2:1（0.63 対 0.315）しかありません。ここに PRIOR 4.0 を当てると：
+ *
+ *   PRIOR 4.0  share 比 1.07倍   ← 関心度スライダーが数値に出てこない
+ *   PRIOR 1.0  share 比 1.24倍
+ *   PRIOR 0.5  share 比 1.39倍
+ *   PRIOR 0    share 比 2.00倍（interest の生の比）
+ *
+ * 値は議員側と同じ比率（PRIOR ÷ 1セルあたりの寄与 ≒ 0.5〜1.3）から決めています。
+ * 到達可能な寄与は 0.315〜0.63 なので 0.3〜0.4 が導出値で、記事が増えてセルが重複し始めた
+ * ときに効きすぎないよう 0.5 に寄せました。
+ * 意味としては「1回答ぶんに満たない擬似的な証拠を、全セルに等しく置く」。
+ *
+ * ★ この値は記事数・議員数が増えても変える必要がありません（実測）。
+ *   - セル数が 2 → 100 に増えても share 比は 1.387倍 のまま。合計寄与が `セル数 × 平均寄与`
+ *     で増えるので、比からセル数が消えるため
+ *   - 同じセルの回答数 n が増えると擬似寄与の影響は自然に薄れる（n=2 で 1.56倍、n=10 で 6.02倍）。
+ *     事前分布は固定値のままデータに押されるのが正しい振る舞いなので、スケールさせないこと
+ *   - ユーザー側の share は議員データを一切参照しないので、議員数とは無関係
+ *   見直しが要るのは **1回答あたりの寄与そのものを変えたとき**だけ（設問ごとに intensity を
+ *   変える、interest の刻みを変える等）。目安は PRIOR ÷ 1回答の寄与 ≒ 0.8。
+ *
+ * ⚠ 現時点ではこの修正でマッチの順位はほとんど動きません。実データ15人で測ると、
+ *   関心のある記事だけ答えた2人の差は 平均6.3pt（PRIOR 4.0）→ 6.8pt（PRIOR 0.5）でした。
+ *   いま順位を決めているのは share の重みではなく **どのセルを持っているか**（どの記事に
+ *   答えたか）です。関心度をもっと効かせたいなら、prior ではなく
+ *   「同じセルを複数記事で問う」か「interest の刻みを広げる」が本筋になります。
+ *
+ * ★ score 側の補正（override の重み k）は議員側と必ず同じにすること。
+ *   あちらは `agree = 1 - |u.score - p.score| / 2` で**差**を取るのでスケールが揃っている
+ *   必要がありますが、share は `sqrt(u.share × p.share)` の**積**で、しかも両側とも
+ *   合計 1.0 の分布なので、擬似寄与を別々に持っても突き合わせは壊れません。
+ */
+export const USER_SHARE_PRIOR = 0.5;
+
+/**
+ * 平滑化した share。`totalWeight` は全セルの寄与合計、`cellCount` はセル数。
+ *
+ * `prior` は寄与のスケールに合わせて渡します（議員側は既定の `SHARE_PRIOR`、
+ * ユーザー側は `USER_SHARE_PRIOR`）。どの prior でも全セルの合計は 1.0 になります。
+ */
+export function smoothedShare(
+  weight: number,
+  totalWeight: number,
+  cellCount: number,
+  prior: number = SHARE_PRIOR,
+): number {
+  const denominator = totalWeight + prior * cellCount;
+  return denominator > 0 ? (weight + prior) / denominator : 0;
 }
 
 // --- distinctiveness --------------------------------------------------------
