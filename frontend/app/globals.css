@@ -133,7 +133,9 @@ button { color:inherit; }
 .fab { pointer-events:auto; position:relative; width:60px; height:60px; border:0; border-radius:50%; background:var(--coral); color:#fff; display:grid; place-items:center; cursor:pointer; box-shadow:0 10px 26px rgba(213,90,55,.38); transition:transform .16s,box-shadow .16s; }
 .fab:hover { box-shadow:0 12px 30px rgba(213,90,55,.46); }
 .fab:active { transform:scale(.94); }
-.fab.saved::after { content:""; position:absolute; top:3px; right:3px; width:13px; height:13px; border-radius:50%; background:var(--green); border:2.5px solid var(--paper); }
+/* 「書きかけで保存していない」ことの印。保存済みかどうかはアイコン（鉛筆／吹き出し）で分かるので、
+   ここでは出しません。 */
+.fab.unsaved::after { content:""; position:absolute; top:3px; right:3px; width:13px; height:13px; border-radius:50%; background:var(--green); border:2.5px solid var(--paper); }
 .sheet-icon { width:30px; height:30px; border-radius:9px; background:#fee5dc; color:var(--coral); display:grid; place-items:center; }
 /* 下端に合わせて置き、高さを明示します。`inset:0` で上下から挟むと、祖先の状況しだいで
    下に隙間が残ることがあるためです。中身だけをスクロールさせるので、

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowUpRight, Check, ChevronLeft, ChevronRight, Compass,
-  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, X,
+  ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Pencil, Sparkles, X,
 } from "lucide-react";
 import { getAnswers, getArticles, getPerspectives, getProfileMatches, saveAnswer } from "../lib/api";
 import type { Article, Match, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement, SavedAnswer } from "../lib/types";
@@ -12,6 +12,12 @@ import { OpinionSheet } from "./opinion-sheet";
 import type { Answers } from "./question-block";
 
 type Screen = "feed" | "detail" | "profile";
+
+/** 設問への回答が一致するか。キーの順序に依存しないよう、中身で比べます。 */
+function sameSelections(a: Answers, b: Answers): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
 
 export default function HomePage() {
   const [screen, setScreen] = useState<Screen>("feed");
@@ -131,6 +137,20 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [articles.length, screen, visibleCount]);
 
+  /**
+   * シートを閉じたあとも、入力は React の state に残ります。保存した内容と食い違って
+   * いれば「書きかけで保存していない」ということなので、FAB に印を出します。
+   *
+   * 保存すると `saved` が新しい回答に差し替わるので、この判定は自動的に false に戻ります。
+   * シートを開かずに戻った場合は初期値のままなので、差は出ません。
+   */
+  const savedAnswer = selected ? saved[selected.id] : undefined;
+  const hasUnsavedInput = Boolean(selected) && (
+    comment.trim() !== (savedAnswer?.comment ?? "")
+    || interest !== (savedAnswer?.interest ?? DEFAULT_INTEREST)
+    || !sameSelections(answers, savedAnswer?.selections ?? {})
+  );
+
   const openArticle = (article: Article) => {
     setSelected(article);
     setComment(saved[article.id]?.comment ?? "");
@@ -174,7 +194,15 @@ export default function HomePage() {
   return (
     <main className="app-shell">
       {screen === "feed" && <Feed articles={articles.slice(0, visibleCount)} saved={saved} onOpen={openArticle} loadingMore={loadingMore} loadMoreRef={loadMoreRef} />}
-      {screen === "detail" && selected && <ArticleDetail article={selected} isSaved={Boolean(saved[selected.id])} onBack={() => setScreen("feed")} onOpenSheet={() => setSheetOpen(true)} />}
+      {screen === "detail" && selected && (
+        <ArticleDetail
+          article={selected}
+          isSaved={Boolean(savedAnswer)}
+          hasUnsavedInput={hasUnsavedInput}
+          onBack={() => setScreen("feed")}
+          onOpenSheet={() => setSheetOpen(true)}
+        />
+      )}
       {sheetOpen && selected && (
         <OpinionSheet
           article={selected}
@@ -259,8 +287,8 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
   );
 }
 
-function ArticleDetail({ article, isSaved, onBack, onOpenSheet }: {
-  article: Article; isSaved: boolean; onBack: () => void; onOpenSheet: () => void;
+function ArticleDetail({ article, isSaved, hasUnsavedInput, onBack, onOpenSheet }: {
+  article: Article; isSaved: boolean; hasUnsavedInput: boolean; onBack: () => void; onOpenSheet: () => void;
 }) {
   return (
     <div className="screen detail-screen">
@@ -283,11 +311,13 @@ function ArticleDetail({ article, isSaved, onBack, onOpenSheet }: {
       </article>
       <div className="fab-layer">
         <button
-          className={isSaved ? "fab saved" : "fab"}
+          // 印を出すのは「書きかけで保存していない」ときだけ。保存済みはアイコンで分かります。
+          className={hasUnsavedInput ? "fab unsaved" : "fab"}
           onClick={onOpenSheet}
-          aria-label={isSaved ? "この記事への意見を編集する" : "この記事への意見を書く"}
+          aria-label={`${isSaved ? "この記事への意見を編集する" : "この記事への意見を書く"}${hasUnsavedInput ? "（保存していない入力があります）" : ""}`}
         >
-          <MessageCircleMore size={26} />
+          {/* 保存済みなら編集モード。押したときに何が起きるかをアイコンでも示します。 */}
+          {isSaved ? <Pencil size={24} /> : <MessageCircleMore size={26} />}
         </button>
       </div>
     </div>
