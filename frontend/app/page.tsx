@@ -127,8 +127,8 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
           <span className="brand-name">civic-compass</span>
         </div>
         <p className="eyebrow">TODAY&apos;S ISSUES</p>
-        <h1>今日の論点を、<br />自分の視点で。</h1>
-        <p className="header-copy">気になるニュースを選ぶだけで、あなたの考えに近い政治家が見えてきます。</p>
+        <h1>ニュースから、<br />自分の政治を考える。</h1>
+        <p className="header-copy">気になる論点を選びながら、あなた自身の考えと近い政治家を見つけよう。</p>
         <div className="privacy-pill"><LockKeyhole size={13} /> 関心データはあなただけに表示されます</div>
       </header>
 
