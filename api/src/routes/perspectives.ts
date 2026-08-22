@@ -138,18 +138,14 @@ function stanceText(frame: Frame, score: number): string {
 }
 
 /**
- * どれだけ語っているか。`share` が重視度、`distinctiveness` が全議員平均の何倍か。
- * 全員が語る観点の一致は情報量が小さいので、倍率を添えて読み分けられるようにします。
+ * どれだけ語っているか。**全議員平均に対する倍率だけ**を出します。
+ *
+ * 多いか少ないかが分かればよいので、`share`（発言全体に占める割合）や
+ * `n`（該当件数）までは画面に出しません。値そのものはレスポンスに入っているので、
+ * 見せ方を変えたくなったらここだけ直せば済みます。
  */
-function mentionText(share: number, distinctiveness: number): string {
-  const percent = (share * 100).toFixed(1);
-  if (distinctiveness >= 1.3) {
-    return `この観点の発言が全体の${percent}%を占め、議員平均の${distinctiveness.toFixed(1)}倍です`;
-  }
-  if (distinctiveness <= 0.7) {
-    return `この観点の発言は全体の${percent}%で、議員平均より少なめです`;
-  }
-  return `この観点の発言が全体の${percent}%を占めます`;
+function mentionText(distinctiveness: number): string {
+  return `この観点での発言量が議員平均の${distinctiveness.toFixed(1)}倍です`;
 }
 
 /**
@@ -428,7 +424,7 @@ perspectives.get("/:articleId", async (c) => {
         distinctiveness: entry.distinctiveness,
         n: entry.n,
         stanceText: stanceText(row.frame, entry.score),
-        mentionText: mentionText(entry.share, entry.distinctiveness),
+        mentionText: mentionText(entry.distinctiveness),
         alignment: entry.alignment,
         // evidence は1セルにつき最大3件。絞らずすべて返し、先頭が代表の1件になります。
         statements: featureOne((evidenceById.get(entry.speaker_id)?.cells[cellKey(entry)] ?? []).map(toStatement)),

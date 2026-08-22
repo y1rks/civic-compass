@@ -438,7 +438,7 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
         <span className={`speaker-role ${politician.role}`}>{target}を{politician.roleLabel}</span>
         <span className="speaker-frame">{politician.stanceText}</span>
       </div>
-      <p className="speaker-mention">{politician.mentionText}（該当する発言 {politician.n}件）</p>
+      <p className="speaker-mention">{politician.mentionText}</p>
 
       {/* 代表の1件だけを畳まずに出します。まず実際の言葉に触れてもらい、
           残りは読みたい人が開く形にします。どれが代表になるかは API 側で毎回変わります。 */}

@@ -294,7 +294,9 @@ test("マッチ度は返さず、その価値をどう扱ったかを文で返�
   // score が負＝その価値を優先順位で下に置いた。「反対」とは書かない。
   // 一律「〜の観点」にすると score が画面から消えるので、ここだけ補う。
   if (override) assert.equal(override.stanceText, "被害や苦痛への配慮の観点（他を優先）");
-  assert.match(uphold.mentionText, /%を占めます|倍です|少なめです/);
+  // 割合や件数は出さず、全議員平均に対する倍率だけを出す
+  assert.equal(uphold.mentionText, "この観点での発言量が議員平均の1.2倍です");
+  assert.equal(uphold.mentionText.includes("%"), false);
 
   assert.equal("match_score" in politicians[0], false);
   assert.equal("matchScore" in politicians[0], false);
