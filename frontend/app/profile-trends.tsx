@@ -52,10 +52,9 @@ export function ProfileTrends({
   return (
     <section className="profile-trends" aria-labelledby="profile-trends-heading">
       <div className="section-heading profile-trends-heading">
-        <div id="profile-trends-heading">あなたの考え方の傾向</div>
         {/* 並び順は score（その価値をどれだけ強く優先したか）の降順。
             API 側（api/src/routes/user-profile.ts）で3件に絞っている。 */}
-        <span>傾向の強さ 上位3件</span>
+        <div id="profile-trends-heading">あなたの考え方の傾向</div>
       </div>
       <p className="profile-trends-intro">回答の結果、以下の価値観を強く優先する傾向にあります。</p>
 
