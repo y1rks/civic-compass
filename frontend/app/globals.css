@@ -141,13 +141,15 @@ button { color:inherit; }
 .match-modal { position:fixed; z-index:50; left:0; right:0; bottom:0; height:100dvh; max-width:520px; margin:0 auto; display:flex; flex-direction:column; overflow:hidden; background:var(--green); color:white; animation:modalIn .35s cubic-bezier(.2,.8,.2,1); }
 @keyframes modalIn { from { transform:translateY(100%); } to { transform:translateY(0); } }
 .modal-glow { position:absolute; top:-100px; left:50%; transform:translateX(-50%); width:370px; height:370px; border-radius:50%; background:radial-gradient(circle,rgba(71,128,112,.48),transparent 69%); pointer-events:none; }
-.modal-header { flex:0 0 auto; height:64px; padding:0 16px; display:grid; grid-template-columns:40px 1fr 60px; align-items:center; position:relative; }
+/* ★ヘッダーと footer には z-index が要ります。スクロールする .modal-content が
+   position:relative なので、指定しないと中身が影の上に描かれて影が消えます。 */
+.modal-header { flex:0 0 auto; height:64px; padding:0 16px; display:grid; grid-template-columns:40px 1fr 60px; align-items:center; position:relative; z-index:1; box-shadow:0 12px 20px -14px rgba(5,28,23,.75); }
 .modal-header>span { text-align:center; font-size:11px; font-weight:700; }
 .modal-header .step-label { text-align:right; color:rgba(255,255,255,.55); font-size:9px; }
 /* スクロールするのはここだけ。下は固定の footer が受けます。 */
 .modal-content { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:13px 16px 20px; position:relative; }
 /* 免責と戻るボタンは常に見える位置に置きます。影は、下に続きがあることの合図です。 */
-.modal-footer { flex:0 0 auto; padding:11px 16px calc(15px + env(safe-area-inset-bottom)); background:var(--green); box-shadow:0 -14px 24px rgba(5,28,23,.3); }
+.modal-footer { flex:0 0 auto; position:relative; z-index:1; padding:11px 16px calc(15px + env(safe-area-inset-bottom)); background:var(--green); box-shadow:0 -14px 22px -10px rgba(5,28,23,.75); }
 .modal-footer .demo-disclaimer { margin:0 0 9px; }
 .match-intro { text-align:center; }
 .sparkle { width:50px; height:50px; border-radius:50%; display:grid; place-items:center; margin:0 auto 13px; color:#ffc3ad; background:rgba(255,255,255,.09); }
