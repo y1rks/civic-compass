@@ -5,8 +5,8 @@ import {
   ArrowLeft, ArrowUpRight, Check, ChevronRight, Compass,
   Home, LockKeyhole, MessageCircleMore, Sparkles, X,
 } from "lucide-react";
-import { getArticles, getMatches, getProfileMatches, saveInterest } from "../lib/api";
-import type { Article, Match, SavedInterest } from "../lib/types";
+import { getAnswers, getArticles, getMatches, getProfileMatches, saveAnswer } from "../lib/api";
+import type { Article, Match, SavedAnswer } from "../lib/types";
 import { OpinionSheet } from "./opinion-sheet";
 import type { Answers } from "./question-block";
 
@@ -21,18 +21,7 @@ export default function HomePage() {
   const [answers, setAnswers] = useState<Answers>({});
   const [interest, setInterest] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [saved, setSaved] = useState<Record<string, SavedInterest>>(() => {
-    if (typeof window === "undefined") return {};
-
-    const stored = window.localStorage.getItem("civic-compass-interests");
-    if (!stored) return {};
-
-    try {
-      return JSON.parse(stored) as Record<string, SavedInterest>;
-    } catch {
-      return {};
-    }
-  });
+  const [saved, setSaved] = useState<Record<string, SavedAnswer>>({});
   const [modalOpen, setModalOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [profileMatches, setProfileMatches] = useState<Match[]>([]);
@@ -52,6 +41,29 @@ export default function HomePage() {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * 保存済みの意見は D1 から読みます。ユーザーの特定はサーバー側で行うので、
+   * アカウント切り替えを入れてもこの呼び出しは変わりません。
+   *
+   * 一覧に戻るたびに読み直すのは、起動時の1回きりだと DB 側の変化に追随できず、
+   * 画面が「保存した覚えのない記事」を保存済みとして出し続けるためです。
+   */
+  useEffect(() => {
+    if (screen !== "feed") return;
+
+    let cancelled = false;
+    void getAnswers()
+      .then((rows) => {
+        if (cancelled) return;
+        setSaved(Object.fromEntries(rows.map((row) => [row.articleId, row])));
+      })
+      .catch((error: unknown) => console.error("Failed to load answers", error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [screen]);
 
   useEffect(() => {
     const articleIds = Object.keys(saved);
@@ -88,7 +100,7 @@ export default function HomePage() {
   const openArticle = (article: Article) => {
     setSelected(article);
     setComment(saved[article.id]?.comment ?? "");
-    setAnswers(saved[article.id]?.answers ?? {});
+    setAnswers(saved[article.id]?.selections ?? {});
     setInterest(saved[article.id]?.interest ?? 1);
     setSheetOpen(false);
     setScreen("detail");
@@ -99,17 +111,18 @@ export default function HomePage() {
     if (!selected) return;
     setSaving(true);
     try {
-      const savedInterest = await saveInterest(selected.id, comment.trim());
-      // 設問の回答はまだ API に送っていません（サーバー側の answers テーブルが未作成）。
-      // 保存の形は同じなので、テーブルができたら送信に切り替えるだけで済みます。
-      const next = { ...saved, [selected.id]: { ...savedInterest, answers, interest } };
-      setSaved(next);
-      window.localStorage.setItem("civic-compass-interests", JSON.stringify(next));
+      const savedAnswer = await saveAnswer({
+        articleId: selected.id,
+        interest,
+        comment: comment.trim(),
+        selections: answers,
+      });
+      setSaved({ ...saved, [selected.id]: savedAnswer });
       setSheetOpen(false);
       setMatches(await getMatches(selected.id));
       setModalOpen(true);
     } catch (error) {
-      console.error("Failed to save interest", error);
+      console.error("Failed to save answer", error);
     } finally {
       setSaving(false);
     }
@@ -141,7 +154,7 @@ export default function HomePage() {
 }
 
 function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
-  articles: Article[]; saved: Record<string, SavedInterest>; onOpen: (article: Article) => void;
+  articles: Article[]; saved: Record<string, SavedAnswer>; onOpen: (article: Article) => void;
   loadingMore: boolean; loadMoreRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (

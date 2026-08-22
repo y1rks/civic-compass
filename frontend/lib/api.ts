@@ -1,11 +1,15 @@
-import type { Article, Match, SavedInterest } from "./types";
+import type { Article, Match, SavedAnswer } from "./types";
 
 type ArticlesResponse = {
   articles: Article[];
 };
 
-type InterestResponse = {
-  interest: SavedInterest;
+type AnswersResponse = {
+  answers: SavedAnswer[];
+};
+
+type AnswerResponse = {
+  answer: SavedAnswer;
 };
 
 type MatchesResponse = {
@@ -33,13 +37,27 @@ export async function getArticles(): Promise<Article[]> {
   return data.articles;
 }
 
-export async function saveInterest(articleId: string, comment: string): Promise<SavedInterest> {
-  const data = await requestJson<InterestResponse>("/api/interests", {
+/**
+ * いまログインしているユーザーの回答一覧。
+ * ユーザーの特定はサーバー側で完結しているので、ここでは何も送りません。
+ */
+export async function getAnswers(): Promise<SavedAnswer[]> {
+  const data = await requestJson<AnswersResponse>("/api/answers", undefined, "保存済みの意見の取得に失敗しました");
+  return data.answers;
+}
+
+export async function saveAnswer(input: {
+  articleId: string;
+  interest: number;
+  comment: string;
+  selections: SavedAnswer["selections"];
+}): Promise<SavedAnswer> {
+  const data = await requestJson<AnswerResponse>("/api/answers", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ articleId, comment }),
-  }, "関心情報の保存に失敗しました");
-  return data.interest;
+    body: JSON.stringify(input),
+  }, "意見の保存に失敗しました");
+  return data.answer;
 }
 
 export async function getMatches(articleId: string): Promise<Match[]> {

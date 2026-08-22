@@ -33,15 +33,15 @@ export type Article = {
   questions: ArticleQuestion[];
 };
 
-export type SavedInterest = {
+/** 保存済みの「この記事への意見」。D1 の answers / answer_selections に対応します。 */
+export type SavedAnswer = {
   articleId: string;
-  comment: string;
-  interested: true;
-  savedAt: string;
-  /** 設問ID → 選んだ stance。未回答の設問は入りません。 */
-  answers?: Record<string, ArticleQuestionOption["stance"]>;
   /** このニュースへの関心度（0 / 0.5 / 1）。寄与 w に掛かります。 */
-  interest?: number;
+  interest: number;
+  comment: string;
+  /** 設問ID → 選んだ stance */
+  selections: Record<string, ArticleQuestionOption["stance"]>;
+  savedAt: string;
 };
 
 export type Match = {
