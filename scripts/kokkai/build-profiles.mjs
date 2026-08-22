@@ -33,6 +33,18 @@ const MAX_EVIDENCE = 3;
 const OVERRIDE_WEIGHT_CAP = 6.0;
 const OVERRIDE_RATE_FLOOR = 0.005;
 
+// share の平滑化。
+//
+// share は「そのセルの寄与 ÷ 全セルの寄与」なので、**分母がセルの総数に依存する**。
+// 発言データが少ないと観測されるセルも少なく、1セルあたりの share が大きく出てしまう。
+// 実測では、同じ議員でも 30セグメント時点で share 0.248 だったセルが、
+// 557セグメントでは 0.050 まで薄まった（言及の傾向は変わっていないのに5倍の差）。
+//
+// このままマッチ計算の sqrt(u.share × p.share) に渡すと、データの少ない議員が
+// 不当に高いスコアを取る。そこで擬似的な寄与を足して、観測が薄いうちは
+// 均等分布（1/セル数）側に引き戻す。distinctiveness の PRIOR と同じ考え方。
+const SHARE_PRIOR = 4.0; // 擬似寄与。実測の「1セルあたり平均寄与」3〜8 の下限側に合わせた
+
 /** その話者が override をどれだけ使うかから、override 1件あたりの重みを決める */
 export function overrideWeight(overrideRate) {
   const p = Math.max(overrideRate, OVERRIDE_RATE_FLOOR);
@@ -160,6 +172,8 @@ function buildPolitician(master, utterances, minN) {
   const kept = [...cells.values()].filter((c) => c.n >= minN);
   // share は件数ではなく寄与の合計で出す。答弁が件数で押し切るのを防ぐため。
   const totalDen = kept.reduce((a, c) => a + c.den, 0);
+  // 平滑化後の分母。観測が薄いほど、各セルが 1/セル数 に近づく
+  const smoothTotal = totalDen + SHARE_PRIOR * kept.length;
 
   // evidence は別ファイルに分ける。
   // C（マッチ度API）は全議員の cells を突合するので、そこに原文が混ざっていると
@@ -171,7 +185,7 @@ function buildPolitician(master, utterances, minN) {
       target: c.target,
       role: c.role,
       score: c.denScore > 0 ? round(c.num / c.denScore) : 0,
-      share: totalDen > 0 ? round(c.den / totalDen) : 0,
+      share: smoothTotal > 0 ? round((c.den + SHARE_PRIOR) / smoothTotal) : 0,
       n: c.n,
     }))
     .sort((a, b) => b.share - a.share);
@@ -181,17 +195,26 @@ function buildPolitician(master, utterances, minN) {
     evidenceByCell[`${c.frame}|${c.target}|${c.role}`] = pickEvidence(c.evidence);
   }
 
-  // 表示用に frame 単独へ畳む
+  // frame 単独へ畳む。
+  //
+  // ★語っていないフレームも share: 0 で必ず記録する。
+  // 「語らなかった」ことも思想の情報だから。ある価値にまったく言及しない議員と、
+  // 同じくその価値に言及しないユーザーは、その点で一致している。
+  // 出現したフレームだけを持つと、この「両者とも関心がない」という一致を捨ててしまう。
   const frames = {};
   for (const f of FRAMES) {
     const group = kept.filter((c) => c.frame === f);
-    if (group.length === 0) continue;
+    if (group.length === 0) {
+      // 観測されなかったフレーム。score は「向き」なので、語っていない以上 null にする
+      frames[f] = { score: null, share: 0, n: 0 };
+      continue;
+    }
     const den = group.reduce((a, c) => a + c.den, 0);
     const denScore = group.reduce((a, c) => a + c.denScore, 0);
     const num = group.reduce((a, c) => a + c.num, 0);
     frames[f] = {
       score: denScore > 0 ? round(num / denScore) : 0,
-      share: totalDen > 0 ? round(den / totalDen) : 0,
+      share: smoothTotal > 0 ? round((den + SHARE_PRIOR * group.length) / smoothTotal) : 0,
       n: group.reduce((a, c) => a + c.n, 0),
     };
   }
@@ -274,6 +297,8 @@ function attachDistinctiveness(profiles) {
       const avg = (frameShares.get(f) ?? 0) / n;
       v.distinctiveness = round((v.share + PRIOR) / (avg + PRIOR));
     }
+    // 語っていないフレームがどれだけあるかは、マッチ計算で使う（下記§4）
+    pr.silent_frames = Object.entries(pr.frames).filter(([, v]) => v.n === 0).map(([f]) => f);
   }
 }
 
@@ -296,6 +321,7 @@ const FRAME_JA = {
  */
 function makeSummary(profile) {
   const top = Object.entries(profile.frames)
+    .filter(([, v]) => v.n > 0)
     .sort((a, b) => b[1].share - a[1].share)
     .slice(0, 3);
   if (top.length === 0) return "データが少ないため、傾向を示せません。";
