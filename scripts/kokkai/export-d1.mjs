@@ -9,6 +9,12 @@
 //
 // D1 は1回の execute に上限があるので、INSERT はバッチに分けて出力します。
 // 【1】は追記のみ・書き換え禁止なので INSERT OR IGNORE にし、再実行しても壊れないようにします。
+//
+// ⚠️ INSERT OR IGNORE は「既存の utterance_id を更新しない」ということでもあります。
+// 抽出をやり直したり repair-evidence.mjs で evidence_text を直したりしたあとは、
+// 古い行が残り続けてしまうので `--truncate` を付けて入れ直してください。
+// （INSERT OR REPLACE にしない理由: utterance_frames が utterances を外部キー参照して
+//   いるため、REPLACE = DELETE + INSERT で子テーブルとの整合が壊れる）
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -20,9 +26,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const MAX_STATEMENT_BYTES = 60_000;
 
 function parseArgs(argv) {
-  const args = { in: "data/pilot/utterances.jsonl", out: "data/pilot/utterances.sql" };
+  const args = { in: "data/pilot/utterances.jsonl", out: "data/pilot/utterances.sql", truncate: false };
   for (const a of argv.slice(2)) {
-    if (a.startsWith("--in=")) args.in = a.slice(5);
+    if (a === "--truncate") args.truncate = true;
+    else if (a.startsWith("--in=")) args.in = a.slice(5);
     else if (a.startsWith("--out=")) args.out = a.slice(6);
     else throw new Error(`不明な引数: ${a}`);
   }
@@ -129,11 +136,23 @@ async function main() {
     }
   }
 
+  // 入れ直すときは先に空にする。子テーブルから順に消さないと外部キーに引っかかる
+  const truncate = args.truncate
+    ? [
+        "-- --truncate 指定のため、既存データを削除してから入れ直します",
+        "DELETE FROM utterance_frame_targets;",
+        "DELETE FROM utterance_frames;",
+        "DELETE FROM utterances;",
+        "",
+      ]
+    : [];
+
   const sql = [
     "-- 【1】utterances。追記のみ・書き換え禁止。",
     "-- 再実行しても壊れないよう INSERT OR IGNORE にしています。",
     `-- 生成元: ${args.in}`,
     "",
+    ...truncate,
     ...insertStatements(
       "utterances",
       Object.keys(uRows[0]),
@@ -153,6 +172,7 @@ async function main() {
   console.log(`  utterance_frames        ${fRows.length} 行`);
   console.log(`  utterance_frame_targets ${tRows.length} 行`);
   console.log(`  SQL ${(sql.length / 1024).toFixed(0)}KB`);
+  if (args.truncate) console.log("  先頭に DELETE を入れました（既存データを置き換えます）");
 }
 
 main().catch((e) => {
