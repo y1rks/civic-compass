@@ -421,12 +421,25 @@ async function main() {
   }
 
   // --- 【2b】セル逆引きインデックス：KV はセル→議員の逆引きができないので別途作る ---
+  //
+  // B（ポップアップ）がこれだけで完結できるよう、politician_name と distinctiveness も持たせる。
+  // profile:{id} を引き直さずに「この議員にとって平均の何倍か」を出せる。
+  // なお同一セル内では distinctiveness は share の単調増加関数なので、
+  // 並べ替えの基準としては share と等価（値を表示・重み付けに使う用途で持つ）。
   const index = new Map();
   for (const pr of profiles) {
     for (const c of pr.cells) {
       const key = cellKey(c);
       if (!index.has(key)) index.set(key, []);
-      index.get(key).push({ speaker_id: pr.speaker_id, score: c.score, share: c.share });
+      index.get(key).push({
+        speaker_id: pr.speaker_id,
+        politician_name: pr.politician_name,
+        party: pr.party,
+        score: c.score,
+        share: c.share,
+        distinctiveness: c.distinctiveness,
+        n: c.n,
+      });
     }
   }
 

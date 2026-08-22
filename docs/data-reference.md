@@ -338,12 +338,25 @@ KV はセル→議員の逆引きができないので、バッチで別途作�
 
 ```jsonc
 [
-  { "speaker_id": "P00001", "score": 0.91, "share": 0.105 },
-  { "speaker_id": "P00003", "score": 1.00, "share": 0.048 }
+  {
+    "speaker_id": "P00007",
+    "politician_name": "斉藤鉄夫",
+    "party": "中道改革連合",
+    "score": 0.383,
+    "share": 0.009,
+    "distinctiveness": 1.583,   // この議員にとって平均の1.6倍
+    "n": 10
+  }
 ]
 ```
 
-`share` の降順。
+`share` の降順。**B はこれだけで議員名・党名まで出せる**ので、
+候補を絞る段階で `profile:{id}` を読む必要はない。
+
+`distinctiveness` を持たせているのは表示や重み付けのため。
+**並べ替えの基準としては `share` と等価**である点に注意
+（同一セル内では `distinctiveness = (share + PRIOR) / (avg + PRIOR)` の `avg` が共通なので、
+`share` の単調増加関数になる。実測でも93セル全部で順序が一致した）。
 
 ---
 
@@ -391,6 +404,51 @@ npx wrangler kv key get "profile:evidence:P00001" \
   --binding=PROFILES --config api/wrangler.jsonc --remote | head -c 2000
 ```
 
+#### evidence から特定のセルだけ取り出す
+
+`profile:evidence:{id}` は 1MB 前後あるので、そのまま眺めるには大きい。
+`cells` のキーは `frame|target|role` なので、そこだけ抜き出す。
+
+```bash
+# セルの一覧を見る
+npx wrangler kv key get "profile:evidence:P00001" \
+  --binding=PROFILES --config api/wrangler.jsonc --remote \
+  | python3 -c "import json,sys; print('\n'.join(json.load(sys.stdin)['cells'].keys()))"
+
+# ひとつのセルの evidence を読む
+npx wrangler kv key get "profile:evidence:P00001" \
+  --binding=PROFILES --config api/wrangler.jsonc --remote \
+  | python3 -c "
+import json,sys
+ev = json.load(sys.stdin)['cells']['sovereignty|国民全体|beneficiary']
+for e in ev:
+    print(f\"[{e['date']}] {e['summary']}\")
+    print(f\"  根拠: {e.get('evidence_text', '（公式サイト由来のため非表示）')}\")
+    print(f\"  出典: {e['url']}\")
+    print()
+"
+
+# 根拠箇所を前後の文脈つきで見る（evidence_span でハイライトする要領）
+npx wrangler kv key get "profile:evidence:P00001" \
+  --binding=PROFILES --config api/wrangler.jsonc --remote \
+  | python3 -c "
+import json,sys
+e = json.load(sys.stdin)['cells']['sovereignty|国民全体|beneficiary'][0]
+full = e.get('block_text') or e.get('quote')
+if not full: raise SystemExit('公式サイト由来のため原文なし')
+s, t = e['evidence_span']
+print(full[:s], '【', full[s:t], '】', full[t:], sep='')
+"
+```
+
+`jq` が入っていれば同じことを短く書ける。
+
+```bash
+npx wrangler kv key get "profile:evidence:P00001" \
+  --binding=PROFILES --config api/wrangler.jsonc --remote \
+  | jq '.cells["sovereignty|国民全体|beneficiary"][0] | {date, summary, evidence_text, url}'
+```
+
 ブラウザなら Cloudflare ダッシュボード → **Storage & Databases → KV → PROFILES**。
 
 ### D1
@@ -424,12 +482,32 @@ WHERE f.stance = 'override' LIMIT 5"
 ### Worker のコードから
 
 ```ts
-// KV
-const profile = await c.env.PROFILES.get(`profile:${speakerId}`, "json");
-const evidence = await c.env.PROFILES.get(`profile:evidence:${speakerId}`, "json");
-const holders = await c.env.PROFILES.get(`cellidx:${frame}|${target}|${role}`, "json");
+// --- C（マッチ度API）: 全議員の profile を読んで突き合わせる ---
+const ids = ["P00001", "P00002" /* … politicians.json から */];
+const profiles = await Promise.all(
+  ids.map((id) => c.env.PROFILES.get(`profile:${id}`, "json")),
+);
+// → 9人で98KB程度。evidence は読まない
 
-// D1（drizzle）
+// --- 上位に入った議員だけ evidence を読む ---
+const evidence = await c.env.PROFILES.get(`profile:evidence:${speakerId}`, "json");
+const items = evidence.cells[`${frame}|${target}|${role}`] ?? [];
+for (const e of items) {
+  const full = e.block_text ?? e.quote;      // 公式サイト由来なら undefined
+  if (full && e.evidence_span) {
+    const [s, t] = e.evidence_span;
+    // full.slice(s, t) が根拠箇所。前後を含めて表示できる
+  } else {
+    // quotable: false。summary と url だけを見せる（§10）
+  }
+}
+
+// --- B（ポップアップ）: セルから議員を逆引きする ---
+// politician_name / party / distinctiveness まで入っているので、これだけで表示できる
+const holders = await c.env.PROFILES.get(`cellidx:${frame}|${target}|${role}`, "json");
+const top3 = holders.filter((h) => Math.sign(h.score) === Math.sign(userScore)).slice(0, 3);
+
+// --- D1（drizzle）---
 import { createDb, utterances } from "@civic-compass/db";
 const db = createDb(c.env.DB);
 ```
