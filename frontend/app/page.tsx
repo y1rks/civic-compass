@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowUpRight, Check, ChevronRight, Compass,
+  ArrowLeft, ArrowUpRight, Check, ChevronDown, ChevronRight, Compass,
   ExternalLink, Home, LockKeyhole, MessageCircleMore, Minus, Quote, Sparkles, X,
 } from "lucide-react";
 import { getAnswers, getArticles, getPerspectives, getProfileMatches, saveAnswer } from "../lib/api";
@@ -435,24 +435,36 @@ function SpeakerCard({ politician, target }: { politician: PerspectivePolitician
       <p className="speaker-stance">{politician.stanceText}</p>
       <p className="speaker-mention">{politician.mentionText}（該当する発言 {politician.n}件）</p>
 
-      {politician.statements.map((statement, index) => (
-        <div className="statement" key={`${statement.url ?? "no-url"}-${index}`}>
-          <div className="statement-meta">
-            <Quote size={11} />
-            <span>{statement.quotable ? "国会会議録" : "本人の発信"}</span>
-            {statement.date && <time>{statement.date}</time>}
-          </div>
-          {/* 原文を出せるのは会議録（公文書）だけ。公式サイト由来は要約とリンクに留めます。 */}
-          {statement.quotable && statement.excerpt
-            ? <p className="statement-quote">{statement.excerpt}</p>
-            : <p className="statement-summary">{statement.summary}</p>}
-          {statement.url && (
-            <a className="statement-link" href={statement.url} target="_blank" rel="noreferrer">
-              出典を読む <ExternalLink size={11} />
-            </a>
-          )}
+      {/* 答弁そのものは長いので畳んでおきます。まず「誰が・どう扱ったか」を一覧で
+          見比べられるようにし、原文は読みたい人だけが開く形にします。
+          JS の状態を持たない <details> なので、描画直後から開閉できます。 */}
+      <details className="statement-fold">
+        <summary>
+          <Quote size={11} />
+          実際の答弁を読む
+          <span className="fold-count">{politician.statements.length}件</span>
+          <ChevronDown size={14} className="fold-chevron" />
+        </summary>
+        <div className="statement-list">
+          {politician.statements.map((statement, index) => (
+            <div className="statement" key={`${statement.url ?? "no-url"}-${index}`}>
+              <div className="statement-meta">
+                <span>{statement.quotable ? "国会会議録" : "本人の発信"}</span>
+                {statement.date && <time>{statement.date}</time>}
+              </div>
+              {/* 原文を出せるのは会議録（公文書）だけ。公式サイト由来は要約とリンクに留めます。 */}
+              {statement.quotable && statement.excerpt
+                ? <p className="statement-quote">{statement.excerpt}</p>
+                : <p className="statement-summary">{statement.summary}</p>}
+              {statement.url && (
+                <a className="statement-link" href={statement.url} target="_blank" rel="noreferrer">
+                  出典を読む <ExternalLink size={11} />
+                </a>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
+      </details>
     </article>
   );
 }
