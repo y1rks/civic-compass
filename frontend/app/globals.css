@@ -48,11 +48,9 @@ button { color:inherit; }
 .load-more { height:70px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; color:#788784; }
 .spinner,.button-spinner { width:16px; height:16px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
-.bottom-nav { position:fixed; z-index:20; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); height:76px; padding:8px max(24px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-bottom)); background:rgba(255,255,255,.93); border-top:1px solid var(--line); backdrop-filter:blur(18px); display:grid; grid-template-columns:1fr 1fr 1fr; }
+.bottom-nav { position:fixed; z-index:20; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); height:76px; padding:8px max(24px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-bottom)); background:rgba(255,255,255,.93); border-top:1px solid var(--line); backdrop-filter:blur(18px); display:grid; grid-template-columns:1fr 1fr; }
 .bottom-nav button { border:0; background:transparent; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#8a9795; font-size:9px; cursor:pointer; }
 .bottom-nav button.active { color:var(--green); font-weight:800; }
-.bottom-nav .compass-action { position:relative; }
-.compass-action span { position:absolute; top:-29px; width:54px; height:54px; border-radius:50%; background:var(--coral); color:white; border:5px solid var(--paper); display:grid; place-items:center; box-shadow:0 7px 20px rgba(185,74,43,.26); }
 .detail-screen { padding-bottom:286px; background:#fff; }
 .detail-nav { height:62px; padding:0 15px; display:grid; grid-template-columns:40px 1fr 40px; align-items:center; background:rgba(255,255,255,.94); position:sticky; top:0; z-index:8; border-bottom:1px solid var(--line); backdrop-filter:blur(14px); }
 .detail-nav>span { text-align:center; font-size:10px; letter-spacing:.08em; font-weight:800; }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Compass, Heart,
-  Home, LockKeyhole, MessageCircle, Sparkles, UserRound, X,
+  Home, LockKeyhole, MessageCircle, Sparkles, X,
 } from "lucide-react";
 import { getArticles, getMatches, getProfileMatches, saveInterest } from "../lib/api";
 import type { Article, Match, SavedInterest } from "../lib/types";
@@ -266,8 +266,7 @@ function BottomNav({ screen, onChange }: { screen: Screen; onChange: (screen: Sc
   return (
     <nav className="bottom-nav" aria-label="メインナビゲーション">
       <button className={screen === "feed" ? "active" : ""} onClick={() => onChange("feed")}><Home size={21} /><span>ニュース</span></button>
-      <button className="compass-action" onClick={() => onChange("profile")} aria-label="政治コンパス"><span><Compass size={24} /></span></button>
-      <button className={screen === "profile" ? "active" : ""} onClick={() => onChange("profile")}><UserRound size={21} /><span>マイページ</span></button>
+      <button className={`compass-action ${screen === "profile" ? "active" : ""}`} onClick={() => onChange("profile")}><Compass size={21} /><span>政治コンパス</span></button>
     </nav>
   );
 }
