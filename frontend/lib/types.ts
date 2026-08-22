@@ -55,3 +55,98 @@ export type Match = {
   color: string;
   website: string;
 };
+
+// ---------------------------------------------------------------------------
+// B（意見保存直後のポップアップ）—— `GET /api/perspectives/:articleId`
+//
+// マッチ度は出しません。**いま答えた論点（frame × target）そのもの**を、
+// 議員が国会でどう語ってきたかを並べます。合う意見だけでなく、同じ観点から
+// 逆の立場で語っている議員も出します。
+//
+// KV 側は snake_case ですが、画面が読むのはこの型なので API の境界で
+// camelCase に寄せています（他のレスポンスと揃えるため）。
+// ---------------------------------------------------------------------------
+
+/** 議員の発言1件。国会会議録由来なら原文（`excerpt`）が入ります。 */
+export type PerspectiveStatement = {
+  date: string | null;
+  summary: string;
+  url: string | null;
+  /**
+   * 原文を表示してよいか。議員の公式サイト由来は著作物なので `false` で、
+   * `excerpt` は null になります。要約とリンクに留めてください。
+   */
+  quotable: boolean;
+  excerpt: string | null;
+};
+
+export type PerspectivePolitician = {
+  speakerId: string;
+  politicianName: string;
+  party: string;
+  /**
+   * ★この議員がその対象をどう扱ったか。**回答した設問の role とは違うことがあります**
+   * （論点は frame × target で束ねていて、role では絞っていないため）。
+   * `beneficiary`（守る対象）と `threat`（脅威）は正反対の思想なので、
+   * カードから消してはいけません（docs/design-constraints.md「禁止事項」）。
+   */
+  role: string;
+  /** 「守る対象として」/「問題の原因として」 */
+  roleLabel: string;
+  /** −1〜+1。その価値を根拠として持ち出したか、優先順位で下に置いたか。 */
+  score: number;
+  /** 全セル中の比重（＝重視度）。 */
+  share: number;
+  /** 全議員平均の何倍語っているか。 */
+  distinctiveness: number;
+  n: number;
+  /** 「〜を根拠として持ち出しています」。API 側のテンプレートで作った文。 */
+  stanceText: string;
+  /** 「この観点の発言が全体の3.2%を占めます」。同上。 */
+  mentionText: string;
+  /**
+   * 「似た立場」/「異なる立場」。マッチ度ではありません。
+   *
+   * ★**その論点の中での相対的な近さ**で決まります。議員側の `score` は97%が
+   *   +0.9以上なので、符号で分けると候補が全員同じ側に寄ってしまうためです。
+   *   `positionsDivided: false` の論点では全員が同じラベルになります。
+   */
+  alignment: "same" | "different" | "unclear";
+  statements: PerspectiveStatement[];
+};
+
+/**
+ * 記事の設問1つ ＝ 論点1つ。
+ *
+ * 議員の逆引きは **frame × target** で行い、`role` では絞りません
+ * （合う意見だけでなく、同じ観点から逆の立場で語っている議員も出すため）。
+ */
+export type Perspective = {
+  questionId: string;
+  prompt: string;
+  frame: string;
+  /** 利用者向けの平易な frame 名。例:「被害や苦痛への配慮」 */
+  frameLabel: string;
+  target: string;
+  /** 回答した設問の role。立場の比較の基準にだけ使い、議員側の role とは別です。 */
+  role: string;
+  yourStance: ArticleQuestionOption["stance"];
+  /**
+   * その論点で議員の立場が分かれていたか。
+   *
+   * `false` は「候補の全員がまったく同じ扱い方をしていた」という意味で、
+   * 実データでは `care_harm × 高齢者` のように**全員 score +1.000** のセルがあります。
+   * そこに差を作るのは捏造なので、画面ではその旨を断ります。
+   *
+   * このとき `politicians` は**2人まで**になります（対比が作れないため）。
+   */
+  positionsDivided: boolean;
+  politicians: PerspectivePolitician[];
+};
+
+export type PerspectiveResult = {
+  articleId: string;
+  interest: number;
+  perspectives: Perspective[];
+  disclaimer: string;
+};

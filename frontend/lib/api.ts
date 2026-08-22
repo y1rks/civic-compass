@@ -1,4 +1,4 @@
-import type { Article, Match, SavedAnswer } from "./types";
+import type { Article, Match, PerspectiveResult, SavedAnswer } from "./types";
 
 type ArticlesResponse = {
   articles: Article[];
@@ -60,13 +60,18 @@ export async function saveAnswer(input: {
   return data.answer;
 }
 
-export async function getMatches(articleId: string): Promise<Match[]> {
-  const data = await requestJson<MatchesResponse>(
-    `/api/matches/${encodeURIComponent(articleId)}`,
+/**
+ * B（意見保存直後のポップアップ）。直前に保存した意見の論点ごとに、
+ * 議員が国会でどう語ってきたかを返します。
+ *
+ * 取得できるのは保存済みの記事だけなので、保存の直後に呼びます。
+ */
+export async function getPerspectives(articleId: string): Promise<PerspectiveResult> {
+  return await requestJson<PerspectiveResult>(
+    `/api/perspectives/${encodeURIComponent(articleId)}`,
     undefined,
-    "政治家マッチの取得に失敗しました",
+    "議員の発言の取得に失敗しました",
   );
-  return data.matches;
 }
 
 export async function getProfileMatches(articleIds: string[]): Promise<Match[]> {

@@ -1,17 +1,15 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../bindings";
-import { createProfileMatches, politicianMatches } from "../data/politicians";
+import { createProfileMatches } from "../data/politicians";
 
+/**
+ * 政治コンパス画面の総合マッチ。**まだデモ用の固定値です**
+ * （C の実装は docs/implementing-match-api.md）。
+ *
+ * 記事1件ぶんの結果は B が担当します（`GET /api/perspectives/:articleId`）。
+ * こちらはマッチ度ではなく「その論点を議員がどう語ってきたか」を返します。
+ */
 const matches = new Hono<AppEnv>();
-
-matches.get("/:articleId", (c) => {
-  const articleId = c.req.param("articleId");
-  if (articleId.length === 0) {
-    return c.json({ status: "error", message: "articleId is required" }, 400);
-  }
-
-  return c.json({ matches: politicianMatches });
-});
 
 matches.post("/profile", async (c) => {
   const body: unknown = await c.req.json().catch(() => null);

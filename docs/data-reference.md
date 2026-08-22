@@ -685,8 +685,8 @@ import { createDb, utterances } from "@civic-compass/db";
 const db = createDb(c.env.DB);
 ```
 
-**`wrangler dev` のローカル KV は空。** 動作確認するなら `--remote` を付けて起動するか、
-`wrangler kv bulk put` でローカルにも入れる。
+**`wrangler dev` のローカル KV は `kv bulk put` するまで空。**
+入れ方は「現在入っているデータ → ★ローカルの KV は自分で入れないと空」を見ること。
 
 ---
 
@@ -736,21 +736,34 @@ data/       utterances 8,559 / frames 19,325 / targets 22,641 / 議員 14人
 
 | | ローカル | リモート |
 |---|---|---|
-| D1 マイグレーション | `0000`〜`0003` | **`0000`〜`0001` のみ** |
+| D1 マイグレーション | `0000`〜`0003` | `0000`〜`0003` |
 | 記事 8本 | ✅ | ✅ |
-| 設問 15問 / 選択肢 45 | ✅ | ❌（`0002` 未適用） |
-| users / answers | ✅（`test_user1` のみ） | ❌（`0003` 未適用） |
-| utterances | ❌ | ✅（抽出途中のもの） |
-| KV `PROFILES`（議員側） | ❌ | ✅（抽出途中のもの） |
+| 設問 15問 / 選択肢 45 | ✅ | ✅ |
+| users / answers | ✅（`test_user1` のみ） | ✅（`test_user1` のみ） |
+| utterances | ❌ | ✅ 5,906件（抽出途中のもの） |
+| KV `PROFILES`（議員側） | ✅ 171キー / 14人 | ✅ 139キー / 10人（抽出途中のもの） |
 | KV `USER_PROFILES` | ✅（空） | ✅（空） |
 
-**リモートに設問とユーザーのテーブルが無い。** デプロイや `wrangler dev --remote`
-を使うなら、先に `npm run db:migrate:remote` が要る。
+**リモートの KV はローカルより古い。** 議員10人ぶんのスナップショットなので、
+田村智子・神谷宗幣・安野貴博・猪瀬直樹・天畠大輔がポップアップに出てこない。
+「データを入れ直すとき」の手順で入れ直せば揃う。
 
-ローカルで議員プロファイルを使いたい場合（マッチ計算の動作確認など）は投入する。
+### ★ローカルの KV は自分で入れないと空
+
+**`wrangler dev` のローカル KV は、`kv bulk put` するまで完全に空。**
+D1（記事・設問・回答）はマイグレーションとシードで入っているので、
+**画面は動くのにポップアップだけ「発言が見つかりませんでした」になる。**
+B（`/api/perspectives`）は KV しか読まないため。
 
 ```bash
 node scripts/kokkai/export-kv.mjs
 npx wrangler kv bulk put data/profiles/kv-bulk.json --binding=PROFILES \
   --config api/wrangler.jsonc --local --persist-to .wrangler/state
+
+# 入ったか確認（空なら [] が返る）
+npx wrangler kv key list --binding=PROFILES --config api/wrangler.jsonc \
+  --local --persist-to .wrangler/state | head -c 300
 ```
+
+`--persist-to` は**リポジトリ直下**を指すこと。省くと実行ディレクトリ直下の
+別の状態を見にいき、入れたはずのデータが空に見える。

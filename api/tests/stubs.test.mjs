@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+// 記事1件ぶんの結果は B（/api/perspectives）が返します。ここは政治コンパス画面の
+// 総合マッチだけで、C の実装までデモ用の固定値です。
 async function request(path, init) {
   const workerUrl = new URL("../dist/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
@@ -8,15 +10,6 @@ async function request(path, init) {
 
   return app.fetch(new Request(`http://localhost${path}`, init), { DB: {} }, {});
 }
-
-test("記事単位の政治家マッチAPIが3人を返す", async () => {
-  const response = await request("/api/matches/energy-2035");
-  const data = await response.json();
-
-  assert.equal(response.status, 200);
-  assert.equal(data.matches.length, 3);
-  assert.equal(data.matches[0].score, 92);
-});
 
 test("総合マッチAPIが保存記事数に応じたスコアを返す", async () => {
   const response = await request("/api/matches/profile", {
