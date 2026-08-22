@@ -1,5 +1,10 @@
-/** Wrangler が生成した Env から、API が使うバインディングを取り出します。 */
-export type Bindings = Pick<Env, "DB">;
+/**
+ * Wrangler が生成した Env から、API が使うバインディングを取り出します。
+ *
+ * `PROFILES` … 議員・政党プロファイルとセル逆引き（バッチが投入する読み取り専用）
+ * `USER_PROFILES` … ユーザープロファイル（意見の保存時に書き込む）
+ */
+export type Bindings = Pick<Env, "DB" | "PROFILES" | "USER_PROFILES">;
 
 /**
  * 各ルーターはこの型で Hono を生成します。

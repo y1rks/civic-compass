@@ -4,4 +4,6 @@
 //
 //   import { FRAMES } from "../../shared/src/vocabulary.ts";
 //
-export * from "./vocabulary";
+export * from "./vocabulary.ts";
+export * from "./scoring.ts";
+export * from "./user-profile.ts";

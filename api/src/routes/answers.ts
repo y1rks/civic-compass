@@ -9,6 +9,7 @@ import {
 } from "@civic-compass/db";
 import type { AppEnv } from "../bindings";
 import { CURRENT_USER_ID } from "../current-user";
+import { buildUserProfile, saveUserProfile } from "../user-profile";
 
 const answers = new Hono<AppEnv>();
 
@@ -158,6 +159,22 @@ answers.post("/", async (c) => {
       })),
     ),
   ]);
+
+  // 回答が変わればプロファイルも変わるので、ここで作り直して KV に置きます。
+  // C（マッチ度API）はリクエストのたびに集計せず、これを読むだけにします。
+  //
+  // 失敗しても保存自体は成功させます。プロファイルは D1 から何度でも作り直せる
+  // 派生データで、ここで 500 を返すと「保存できていないのか」が利用者に分からなく
+  // なるためです。
+  try {
+    await saveUserProfile(c.env.USER_PROFILES, await buildUserProfile(db, CURRENT_USER_ID, now));
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: "Failed to update user profile",
+      userId: CURRENT_USER_ID,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
 
   return c.json({
     answer: {
