@@ -27,16 +27,31 @@ const render = (props = {}) => renderToStaticMarkup(createElement(ProfileTrends,
   ...props,
 }));
 
-test("上位セルの組み合わせと正負のスコアを日本語で表示する", () => {
+test("上位セルの組み合わせと傾向を日本語で表示する", () => {
   const html = render();
   assert.match(html, /被害や苦痛への配慮/);
   assert.match(html, /子ども・将来世代/);
   assert.match(html, /守る対象・利益を及ぼす対象/);
-  assert.match(html, /-1\.00/);
+  assert.match(html, /ほかの価値を強く優先する傾向/);
   assert.match(html, /公正さ/);
   assert.match(html, /脅威・問題の原因/);
-  assert.match(html, /\+0\.75/);
+  assert.match(html, /この価値を強く優先する傾向/);
   assert.match(html, /政策への賛否ではなく/);
+  assert.doesNotMatch(html, /[+-]\d\.\d{2}/);
+  assert.doesNotMatch(html, /trend-score-chart|trend-chart-fill|この価値を重視/);
+});
+
+test("傾向の強さを3段階で表示する", () => {
+  const html = render({
+    cells: [
+      { ...cells[0], score: -0.5 },
+      { ...cells[1], score: 0.2 },
+      { ...cells[1], target: "国民全体", score: 0 },
+    ],
+  });
+  assert.match(html, /ほかの価値を優先する傾向/);
+  assert.match(html, /この価値をやや優先する傾向/);
+  assert.match(html, /どちらにも偏らない傾向/);
 });
 
 test("セルがなければ回答を促す", () => {
