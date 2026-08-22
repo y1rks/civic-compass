@@ -90,8 +90,16 @@ export function alignSegments(text, heads) {
 export function alignEvidence(segmentText, segmentOffset, frames) {
   return frames.map((f) => {
     const { span, match } = locate(segmentText, f.evidence_text ?? "");
+
+    // 表記ゆれで位置を特定できた場合、LLM が返した文字列は原文と1〜数文字ずれている
+    // （改行を落とす、括弧を変えるなど）。位置のほうが正確なので、
+    // **原文から切り直した文字列で置き換える**。
+    // こうしないと UI が evidence_text を表示したとき、原文と食い違う。
+    const exactText = span ? segmentText.slice(span[0], span[1]) : f.evidence_text;
+
     return {
       ...f,
+      evidence_text: exactText,
       evidence_span: span ? [segmentOffset + span[0], segmentOffset + span[1]] : null,
       evidence_match: match,
       kept: match !== "not_found",

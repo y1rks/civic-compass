@@ -317,18 +317,23 @@ const FRAME_JA = {
 
 /**
  * プロファイルの要約文。**LLM は使わない**（§6「LLMに政治家の主張を記憶から語らせる」の禁止）。
- * 上位フレームを日本語化して並べるだけのテンプレート。
+ *
+ * share の上位を並べると、誰でも語るフレーム（care_harm / efficiency_utility /
+ * procedure_rule_of_law）ばかりになり、全議員が似た要約になってしまう。
+ * その人らしさを出すため **distinctiveness（全議員平均比）で並べる**。
+ * ただし突出度だけだと n の小さいセルを拾うので、share が一定以上のものに限る。
  */
 function makeSummary(profile) {
-  const top = Object.entries(profile.frames)
-    .filter(([, v]) => v.n > 0)
-    .sort((a, b) => b[1].share - a[1].share)
-    .slice(0, 3);
-  if (top.length === 0) return "データが少ないため、傾向を示せません。";
+  const candidates = Object.entries(profile.frames).filter(([, v]) => v.n > 0 && v.share >= 0.03);
+  if (candidates.length === 0) return "データが少ないため、傾向を示せません。";
+
+  const top = candidates.sort((a, b) => b[1].distinctiveness - a[1].distinctiveness).slice(0, 3);
 
   const parts = top.map(([f, v]) => {
     const label = FRAME_JA[f] ?? f;
-    return v.score < -0.2 ? `${label}よりも他の価値を優先する` : `${label}を重んじる`;
+    if (v.score < -0.2) return `${label}よりも他の価値を優先する`;
+    // 平均から離れているものは「特に」を付けて、横並びの印象を避ける
+    return v.distinctiveness >= 1.5 ? `特に${label}を重んじる` : `${label}を重んじる`;
   });
   return `${parts.join("、")}傾向。`;
 }
@@ -360,7 +365,7 @@ async function main() {
     const { profile, evidence } = buildPolitician(p, us, args.minN);
     const dates = us.map((u) => u.date).filter(Boolean).sort();
     profile.window = { from: master.extract_window.from, to: master.extract_window.to, data_range: dates.length ? [dates[0], dates.at(-1)] : null };
-    profile.summary = makeSummary(profile);
+    // summary は distinctiveness を使うので、attachDistinctiveness の後で入れる
     profiles.push(profile);
 
     await writeFile(path.join(OUT_DIR, `profile_${p.speaker_id}.json`), JSON.stringify(profile, null, 2) + "\n", "utf8");
@@ -369,6 +374,7 @@ async function main() {
 
   // 全議員が出揃ってから突出度を計算し、プロファイルに書き戻す
   attachDistinctiveness(profiles);
+  for (const pr of profiles) pr.summary = makeSummary(pr);
   for (const pr of profiles) {
     await writeFile(path.join(OUT_DIR, `profile_${pr.speaker_id}.json`), JSON.stringify(pr, null, 2) + "\n", "utf8");
   }
