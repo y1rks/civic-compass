@@ -49,6 +49,8 @@ test("ニュース一覧の主要な要素が描画される", async () => {
 
   // 一覧のコンテナとボトムナビゲーション
   assert.match(html, /aria-label="政治ニュース一覧"/);
+  assert.match(html, /政治コンパス/);
+  assert.doesNotMatch(html, /マイページ/);
   assert.match(html, /aria-label="メインナビゲーション"/);
 
   // 関心データがローカルにとどまることを伝える表示
