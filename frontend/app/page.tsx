@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Compass, Heart,
+  ArrowLeft, ArrowUpRight, Check, ChevronRight, Compass, Heart,
   Home, LockKeyhole, MessageCircle, Sparkles, X,
 } from "lucide-react";
 import { getArticles, getMatches, getProfileMatches, saveInterest } from "../lib/api";
@@ -125,7 +125,6 @@ function Feed({ articles, saved, onOpen, loadingMore, loadMoreRef }: {
         <div className="brand-row">
           <div className="brand-mark"><Compass size={19} strokeWidth={2.4} /></div>
           <span className="brand-name">civic-compass</span>
-          <button className="icon-button" aria-label="保存した記事"><Bookmark size={21} /></button>
         </div>
         <p className="eyebrow">TODAY&apos;S ISSUES</p>
         <h1>今日の論点を、<br />自分の視点で。</h1>
@@ -167,7 +166,6 @@ function ArticleDetail({ article, comment, setComment, isSaved, saving, onBack, 
       <header className="detail-nav">
         <button className="round-button" onClick={onBack} aria-label="ニュース一覧へ戻る"><ArrowLeft size={21} /></button>
         <span>{article.source}</span>
-        <button className="round-button" aria-label="記事を保存"><Bookmark size={20} /></button>
       </header>
       <article>
         <img className="hero-image" src={article.image} alt="" />
