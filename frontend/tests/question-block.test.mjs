@@ -56,6 +56,15 @@ test("stance は画面に出さない（賛成／反対と誤解されるため�
   assert.doesNotMatch(html, /care_harm|beneficiary/);
 });
 
+test("設問には表示順の通し番号が付く", () => {
+  // 番号は表示順から振るので、複数問のときだけ連番になることを確かめる
+  const second = { ...questions[0], id: "energy-2035_q2", prompt: "電気料金への影響について" };
+  const html = render({ questions: [questions[0], second] });
+
+  assert.match(html, /<span class="question-number">Q1\.<\/span> 発電設備が自然環境に与える影響について/);
+  assert.match(html, /<span class="question-number">Q2\.<\/span> 電気料金への影響について/);
+});
+
 test("同じ設問の選択肢は単一選択になる（radio かつ name が同一）", () => {
   const html = render();
   const radios = html.match(/<input[^>]*type="radio"[^>]*>/g) ?? [];

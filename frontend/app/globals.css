@@ -35,7 +35,7 @@ button { color:inherit; }
 .top-story,.saved-badge { position:absolute; top:10px; left:10px; border-radius:99px; padding:5px 9px; font-size:10px; font-weight:800; }
 .top-story { background:var(--coral); color:white; }
 .saved-badge { left:auto; right:10px; background:rgba(248,246,239,.94); color:var(--green); display:flex; gap:4px; align-items:center; }
-/* 「関心がない」で保存した記事。答えてはいるが関心はない、と分かる見た目にする。 */
+/* 「関心なし」で保存した記事。答えてはいるが関心はない、と分かる見た目にする。 */
 .saved-badge.muted { color:#7d8b88; }
 .article-body { padding:14px 14px 12px; min-width:0; display:flex; flex-direction:column; }
 .featured .article-body { padding:17px 17px 16px; }
@@ -94,15 +94,39 @@ button { color:inherit; }
 .optional-mark { color:#8b9895; font-size:11px; font-weight:600; }
 .question-progress { flex:none; padding:4px 9px; border-radius:99px; background:#fff; border:1px solid var(--line); color:#74827f; font-size:10px; font-weight:800; }
 
-/* 関心度。寄与 w に掛かるので、選ばせる前提で既定値を「気になる」にしてある。 */
-.interest-levels { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
-.interest-level { padding:13px 4px; border:1px solid var(--line); border-radius:12px; background:#fff; color:#5d6f6c; font-size:11px; font-weight:700; cursor:pointer; transition:border-color .15s,background .15s; }
-.interest-level.selected { border-color:var(--coral); background:#fdf2ee; color:var(--ink); }
+/* 関心度。寄与 w に掛かるので、選ばせる前提で既定値を「関心あり」にしてある。
+   4段階を1本の軸にしているのは、ボタンを並べると段階だと伝わらないため。
+
+   ★軸の両端は、左右端のラベルの中央に揃える。
+     ラベルは中央がつまみの中心に来るよう絶対配置しているので、軸の端を
+     「両端ラベルの半分の幅」だけ内側に置けば、中央が軸の端の真上に来て、
+     かつラベルが枠からはみ出さない。両端は「関心なし」「関心あり」の4文字で、
+     日本語は 1文字 = 1em なので半分は 2em。ラベルの文言を変えるならここも直す。
+
+   ★input のトラックは透明にし、見えている軸は .interest-track だけにする。
+     つまみは端で半分内側に入るので、input を左右につまみ半分ぶんはみ出させて
+     **つまみの中心が軸の端まで届く**ようにしている。 */
+.interest-slider { --interest-thumb:22px; --interest-label:10px; --interest-edge:calc(var(--interest-label) * 2); --interest-bar:6px; position:relative; padding-top:3px; }
+.interest-track { position:absolute; top:calc(3px + (var(--interest-thumb) - var(--interest-bar)) / 2); left:var(--interest-edge); right:var(--interest-edge); height:var(--interest-bar); border-radius:99px; pointer-events:none; background:linear-gradient(to right,var(--coral) 0 var(--interest-fill),rgba(24,55,51,.12) var(--interest-fill) 100%); }
+.interest-range { -webkit-appearance:none; appearance:none; position:relative; display:block; height:var(--interest-thumb); margin:0 0 0 calc(var(--interest-edge) - var(--interest-thumb) / 2); width:calc(100% - var(--interest-edge) * 2 + var(--interest-thumb)); background:transparent; cursor:pointer; }
+.interest-range:focus { outline:none; }
+.interest-range::-webkit-slider-runnable-track { height:var(--interest-bar); background:transparent; }
+.interest-range::-moz-range-track { height:var(--interest-bar); background:transparent; }
+.interest-range::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:var(--interest-thumb); height:var(--interest-thumb); margin-top:calc((var(--interest-bar) - var(--interest-thumb)) / 2); border-radius:50%; background:#fff; border:2px solid var(--coral); box-shadow:0 1px 4px rgba(22,44,40,.22); }
+.interest-range::-moz-range-thumb { width:var(--interest-thumb); height:var(--interest-thumb); box-sizing:border-box; border-radius:50%; background:#fff; border:2px solid var(--coral); box-shadow:0 1px 4px rgba(22,44,40,.22); }
+.interest-range:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 4px rgba(232,111,76,.24); }
+.interest-range:focus-visible::-moz-range-thumb { box-shadow:0 0 0 4px rgba(232,111,76,.24); }
+
+/* ラベルは目盛りそのもの。中央をつまみの中心に合わせる（位置は tsx 側の at()）。 */
+.interest-labels { position:relative; height:17px; margin-top:7px; }
+.interest-label { position:absolute; top:0; transform:translateX(-50%); padding:0; border:0; background:none; color:#8b9895; font-size:var(--interest-label); font-weight:600; line-height:17px; white-space:nowrap; cursor:pointer; transition:color .15s; }
+.interest-label.selected { color:var(--coral); font-weight:800; }
 
 /* 争点の選択肢。stance は文面が担うので、ラベルとしては出さない。 */
 .question-card { border:0; margin:0 0 14px; padding:0; min-width:0; }
 .question-card:last-child { margin-bottom:0; }
 .question-card legend { padding:0; font-size:12px; font-weight:800; line-height:1.7; }
+.question-number { color:var(--coral); }
 .option-list { display:grid; gap:7px; margin-top:10px; }
 .option { position:relative; display:grid; grid-template-columns:20px 1fr; gap:10px; align-items:start; padding:12px 13px; border:1px solid var(--line); border-radius:12px; background:#fff; cursor:pointer; transition:border-color .15s,background .15s; }
 .option:hover { border-color:rgba(24,55,51,.26); }

@@ -12,7 +12,7 @@ import type {
   Article, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement,
   ProfileMatchesResponse, SavedAnswer, UserProfileCell,
 } from "../lib/types";
-import { DEFAULT_INTEREST, interestLabel } from "../lib/interest";
+import { DEFAULT_INTEREST, interestLabel, isInterested } from "../lib/interest";
 import { OpinionSheet } from "./opinion-sheet";
 import { ProfileTrends } from "./profile-trends";
 import { ProfileMatches } from "./profile-matches";
@@ -269,10 +269,11 @@ export default function HomePage() {
 
 /**
  * 一覧に出す関心度のバッジ。シートで選んだのと同じ言葉を出します。
- * 「関心がない」で保存した記事を「関心あり」と表示しないための分岐です。
+ * 「関心なし」で保存した記事を「関心あり」と表示しないための分岐です。
  */
 function InterestBadge({ interest }: { interest: number }) {
-  const interested = interest > 0;
+  // 表示だけの判定。集計の「cells に入るか」（interest > 0）とは別（lib/interest.ts）
+  const interested = isInterested(interest);
 
   return (
     <span className={interested ? "saved-badge" : "saved-badge muted"}>

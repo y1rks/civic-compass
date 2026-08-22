@@ -54,7 +54,7 @@ const render = (props) => renderToStaticMarkup(createElement(OpinionSheet, {
 test("シートに関心度・設問・コメント・2つのボタンが並ぶ", () => {
   const html = render();
   assert.match(html, /このニュースへの関心度/);
-  assert.match(html, /関心がない/);
+  assert.match(html, /関心なし/);
   assert.match(html, /やや関心あり/);
   assert.match(html, /関心あり/);
   assert.match(html, /考えに近いものを選んでください。/);
@@ -102,6 +102,21 @@ test("すべて答えると保存ボタンが押せるようになる", () => {
 });
 
 test("選んだ関心度が選択状態になる", () => {
-  const html = render({ interest: 0.5 });
-  assert.match(html, /class="interest-level selected" aria-pressed="true">やや関心あり</);
+  const html = render({ interest: 0.66 });
+  assert.match(html, /class="interest-label selected"[^>]*aria-pressed="true">やや関心あり</);
+});
+
+test("関心度はスライダーで、目盛りの添字を値として持つ", () => {
+  // 値そのもの（0.66）を range に入れると浮動小数の誤差で端が選べなくなる
+  const html = render({ interest: 0.66 });
+  assert.match(html, /type="range"[^>]*max="3"/);
+  assert.match(html, /value="2"/);
+  assert.match(html, /aria-valuetext="やや関心あり"/);
+});
+
+test("4段階すべてが目盛りとして並ぶ", () => {
+  const html = render();
+  for (const label of ["関心なし", "あまり関心なし", "やや関心あり", "関心あり"]) {
+    assert.match(html, new RegExp(`>${label}<`));
+  }
 });
