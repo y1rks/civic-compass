@@ -8,7 +8,7 @@ button,textarea { font:inherit; }
 button,a { -webkit-tap-highlight-color:transparent; }
 button { color:inherit; }
 .app-shell { min-height:100dvh; max-width:520px; margin:0 auto; background:var(--paper); position:relative; box-shadow:0 0 45px rgba(22,44,40,.12); overflow-x:hidden; }
-.screen { min-height:100dvh; padding-bottom:94px; }
+.screen { min-height:100dvh; padding-bottom:80px; }
 .eyebrow { margin:0; font-size:10px; letter-spacing:.19em; font-weight:800; color:var(--coral); }
 .brand-row { height:64px; display:flex; align-items:center; }
 .brand-mark { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; color:white; background:var(--coral); }
@@ -57,14 +57,14 @@ button { color:inherit; }
 .load-more { height:70px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; color:#788784; }
 .spinner,.button-spinner { width:16px; height:16px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
-.bottom-nav { position:fixed; z-index:20; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); height:76px; padding:8px max(12px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-bottom)); background:rgba(255,255,255,.93); border-top:1px solid var(--line); backdrop-filter:blur(18px); display:grid; grid-template-columns:repeat(3,1fr); }
+.bottom-nav { position:fixed; z-index:20; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); height:62px; padding:5px max(12px,env(safe-area-inset-left)) max(5px,env(safe-area-inset-bottom)); background:rgba(255,255,255,.93); border-top:1px solid var(--line); backdrop-filter:blur(18px); display:grid; grid-template-columns:repeat(3,1fr); }
 .bottom-nav button { border:0; background:transparent; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#8a9795; font-size:9px; cursor:pointer; }
 .bottom-nav button.active { color:var(--green); font-weight:800; }
-.bottom-nav .compass-action { position:relative; z-index:1; gap:1px; color:var(--green); font-weight:800; transform:translateY(-10px); }
-.compass-nav-icon { width:46px; height:46px; display:grid; place-items:center; border:4px solid #fff; border-radius:50%; background:var(--coral); color:#fff; box-shadow:0 6px 17px rgba(24,55,51,.22); transition:background .18s,box-shadow .18s,transform .18s; }
+.bottom-nav .compass-action { position:relative; z-index:1; gap:1px; color:var(--green); font-weight:800; transform:translateY(-9px); }
+.compass-nav-icon { width:42px; height:42px; display:grid; place-items:center; border:4px solid #fff; border-radius:50%; background:var(--coral); color:#fff; box-shadow:0 6px 17px rgba(24,55,51,.22); transition:background .18s,box-shadow .18s,transform .18s; }
 .compass-action:active .compass-nav-icon { transform:scale(.94); }
 .compass-action.active .compass-nav-icon { background:var(--green); box-shadow:0 0 0 3px rgba(31,75,69,.14),0 6px 17px rgba(24,55,51,.24); }
-.detail-screen { padding-bottom:110px; background:#fff; }
+.detail-screen { padding-bottom:96px; background:#fff; }
 .detail-nav { height:62px; padding:0 62px; display:flex; align-items:center; justify-content:center; background:#fff; border-bottom:1px solid var(--line); }
 /* 戻るボタンだけは常に見えるように固定する。記事画像の上にも重なるので影を付ける。 */
 .back-layer { position:fixed; z-index:16; top:0; left:50%; transform:translateX(-50%); width:min(100%,520px); padding:12px 15px; pointer-events:none; }
