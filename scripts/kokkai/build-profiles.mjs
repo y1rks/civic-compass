@@ -29,7 +29,8 @@ import {
   overrideWeight,
   smoothedShare,
 } from "../../shared/src/scoring.ts";
-import { FRAMES, FRAME_JA_PLAIN as FRAME_JA } from "./llm.mjs";
+import { FRAMES } from "./llm.mjs";
+import { FRAME_LENS } from "../../shared/src/vocabulary.ts";
 import { ROOT, loadMaster } from "./masters.mjs";
 
 const OUT_DIR = path.join(ROOT, "data/profiles");
@@ -41,9 +42,19 @@ const MAX_EVIDENCE = 3;
 //
 // 議員の平均だけで党の傾向を作ると、その党から選んだ議員が誰かでプロファイルが動く
 // （自民は高市氏と河野氏で cells がかなり違う）。党として公表している公約のほうが
-// 「党の立場」に近いので主にする。ただし公約は書き言葉で網羅的なぶん、実際の重点が
-// 読み取りにくい面もあるので、議員の発言も従として混ぜる。
-const MANIFESTO_WEIGHT = 0.7;
+// 「党の立場」に近い。ただし公約は書き言葉で**網羅的に書くもの**なので、重みを上げると
+// どの党も同じ論点に同じように触れることになり、**党どうしが似てしまう**。
+//
+// 実測（13党の cells を share ベクトルにしてコサイン類似度を取ったもの）:
+//
+//   重み  政党どうしの類似度      マッチ度の1位〜最下位の幅
+//   0     平均0.585 最小0.049    31.7pt
+//   0.3   平均0.625 最小0.106    29.1pt   ← 採用
+//   0.7   平均0.649 最小0.183    25.7pt   自民と維新が0.1pt差まで詰まり、順位が意味を失う
+//
+// 0.3 は「議員の選び方に左右されすぎない」と「党の違いが残る」の折り合い。
+// 所属議員のプロファイルが無い党（立憲・公明・保守・社民・減税）は公約のみで作る。
+const MANIFESTO_WEIGHT = 0.3;
 
 // override の重み。
 //
@@ -338,24 +349,48 @@ function attachDistinctiveness(profiles) {
 /**
  * プロファイルの要約文。**LLM は使わない**（§6「LLMに政治家の主張を記憶から語らせる」の禁止）。
  *
- * share の上位を並べると、誰でも語るフレーム（care_harm / efficiency_utility /
- * procedure_rule_of_law）ばかりになり、全議員が似た要約になってしまう。
- * その人らしさを出すため **distinctiveness（全議員平均比）で並べる**。
- * ただし突出度だけだと n の小さいセルを拾うので、share が一定以上のものに限る。
+ * ★フレーム単独ではなく `frame × target × role` のセルで書く。
+ *   「効率と実利を重んじる」だけだと、**誰の利益として語ったか**が落ちる。
+ *   `efficiency_utility × 大企業・産業` と `× 障害者・マイノリティ` は別の思想なので、
+ *   フレーム名だけの要約では全議員が似た文面になってしまう（docs/design-constraints.md
+ *   「フレーム単独で議員の傾向を持つ」の禁止と同じ理由）。
+ *
+ * 文型は画面の「あなたの考え方の傾向」（frontend/app/profile-trends.tsx）と揃える。
+ * 物差しの言い回しは `shared/src/vocabulary.ts` の `FRAME_LENS` が正。
+ *
+ *   beneficiary … 「{target}にとって{lens}」
+ *   threat      … 「{target}が{lens}」
+ *
+ * share の上位を並べると誰でも語るセルばかりになるので、**distinctiveness（全議員平均比）**
+ * で並べる。ただし突出度だけだと n の小さいセルを拾うため、n と share に下限を置く。
  */
+const SUMMARY_MIN_N = 3;
+const SUMMARY_MIN_SHARE = 0.02;
+const SUMMARY_CELLS = 3;
+
 function makeSummary(profile) {
-  const candidates = Object.entries(profile.frames).filter(([, v]) => v.n > 0 && v.share >= 0.03);
+  const candidates = (profile.cells ?? [])
+    .filter((c) => c.n >= SUMMARY_MIN_N && c.share >= SUMMARY_MIN_SHARE);
   if (candidates.length === 0) return "データが少ないため、傾向を示せません。";
 
-  const top = candidates.sort((a, b) => b[1].distinctiveness - a[1].distinctiveness).slice(0, 3);
+  const top = [...candidates]
+    .sort((a, b) => (b.distinctiveness ?? 0) - (a.distinctiveness ?? 0))
+    .slice(0, SUMMARY_CELLS);
 
-  const parts = top.map(([f, v]) => {
-    const label = FRAME_JA[f] ?? f;
-    if (v.score < -0.2) return `${label}よりも他の価値を優先する`;
-    // 平均から離れているものは「特に」を付けて、横並びの印象を避ける
-    return v.distinctiveness >= 1.5 ? `特に${label}を重んじる` : `${label}を重んじる`;
-  });
-  return `${parts.join("、")}傾向。`;
+  // 「重視する」ものと「他を優先する」ものは文型が違うので、向きで分けてから並べる
+  // かぎ括弧で1つずつ括ると鉤が並んで読みにくいので、中黒でつなぐ
+  const phrase = (c) => {
+    const { lens } = FRAME_LENS[c.frame][c.role];
+    return c.role === "beneficiary" ? `${c.target}にとって${lens}` : `${c.target}が${lens}`;
+  };
+  const upheld = top.filter((c) => c.score >= -0.2).map(phrase);
+  const overridden = top.filter((c) => c.score < -0.2).map(phrase);
+
+  const parts = [
+    ...(upheld.length > 0 ? [`${upheld.join("・")}を重視`] : []),
+    ...(overridden.length > 0 ? [`${overridden.join("・")}よりも、ほかの事情を優先`] : []),
+  ];
+  return `${parts.join("、")}する傾向。`;
 }
 
 async function main() {

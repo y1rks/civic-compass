@@ -310,8 +310,8 @@ button { color:inherit; }
 .profile-match-info h2 { font-size:14px; }
 .mini-track { margin:8px 0 0; }
 /* 議員・政党の傾向の要約。カードのグリッドの2行目に置き、**アイコンの左端に揃えます**
-   （2列目から右端まで）。カードが縦に伸びすぎないよう2行で打ち切ります。 */
-.profile-match-card .match-summary { grid-column:2 / -1; margin:2px 0 0; font-size:9px; line-height:1.65; color:#596966; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }
+   （2列目から右端まで）。カードが縦に伸びすぎないよう3行で打ち切ります。 */
+.profile-match-card .match-summary { grid-column:2 / -1; margin:2px 0 0; font-size:9px; line-height:1.65; color:#596966; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; }
 .profile-score { text-align:right; color:var(--coral); display:grid; justify-items:end; gap:5px; }
 .profile-score strong { font-family:Georgia,serif; font-size:19px; letter-spacing:-.02em; white-space:nowrap; }
 .profile-score small { font-size:9px; }
