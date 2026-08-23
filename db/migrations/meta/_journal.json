@@ -43,6 +43,13 @@
       "when": 1787521841361,
       "tag": "0005_curly_moondragon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787608241361,
+      "tag": "0006_lucky_lifeguard",
+      "breakpoints": true
     }
   ]
 }
