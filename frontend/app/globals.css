@@ -57,9 +57,13 @@ button { color:inherit; }
 .load-more { height:70px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; color:#788784; }
 .spinner,.button-spinner { width:16px; height:16px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
-.bottom-nav { position:fixed; z-index:20; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); height:76px; padding:8px max(24px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-bottom)); background:rgba(255,255,255,.93); border-top:1px solid var(--line); backdrop-filter:blur(18px); display:grid; grid-template-columns:1fr 1fr; }
+.bottom-nav { position:fixed; z-index:20; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,520px); height:76px; padding:8px max(12px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-bottom)); background:rgba(255,255,255,.93); border-top:1px solid var(--line); backdrop-filter:blur(18px); display:grid; grid-template-columns:repeat(3,1fr); }
 .bottom-nav button { border:0; background:transparent; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#8a9795; font-size:9px; cursor:pointer; }
 .bottom-nav button.active { color:var(--green); font-weight:800; }
+.bottom-nav .compass-action { position:relative; z-index:1; gap:1px; color:var(--green); font-weight:800; transform:translateY(-10px); }
+.compass-nav-icon { width:46px; height:46px; display:grid; place-items:center; border:4px solid #fff; border-radius:50%; background:var(--coral); color:#fff; box-shadow:0 6px 17px rgba(24,55,51,.22); transition:background .18s,box-shadow .18s,transform .18s; }
+.compass-action:active .compass-nav-icon { transform:scale(.94); }
+.compass-action.active .compass-nav-icon { background:var(--green); box-shadow:0 0 0 3px rgba(31,75,69,.14),0 6px 17px rgba(24,55,51,.24); }
 .detail-screen { padding-bottom:110px; background:#fff; }
 .detail-nav { height:62px; padding:0 62px; display:flex; align-items:center; justify-content:center; background:#fff; border-bottom:1px solid var(--line); }
 /* 戻るボタンだけは常に見えるように固定する。記事画像の上にも重なるので影を付ける。 */
@@ -334,6 +338,33 @@ button { color:inherit; }
 .empty-state svg { color:var(--coral); }
 .empty-state h2 { font-family:Georgia,"Yu Mincho",serif; font-size:17px; }
 .empty-state p { font-size:11px; color:#74827f; line-height:1.7; }
+.my-page-header { padding:44px 20px 27px; background:var(--green); color:#fff; text-align:center; }
+.my-page-header h1 { margin:8px 0; font-family:Georgia,"Yu Mincho",serif; font-size:29px; }
+.my-page-header>p:last-child { margin:0; color:rgba(255,255,255,.65); font-size:11px; }
+.my-page-content { padding:18px 16px 28px; }
+.my-page-user-card { position:relative; display:grid; grid-template-columns:56px minmax(0,1fr) auto; align-items:center; gap:13px; padding:17px; border:1px solid var(--line); border-radius:17px; background:#fff; box-shadow:0 4px 18px rgba(26,49,45,.05); }
+.my-page-avatar { width:56px; height:56px; display:grid; place-items:center; border-radius:50%; background:var(--mint); color:var(--green); }
+.my-page-user-label { margin:0 0 3px; color:#899592; font-size:9px; }
+.my-page-user-card h2 { margin:0; font-family:Georgia,"Yu Mincho",serif; font-size:16px; }
+.my-page-user-card>div:nth-child(2)>p:last-child { margin:5px 0 0; color:#74827f; font-size:9px; }
+.my-page-demo-badge { align-self:start; padding:4px 8px; border-radius:99px; background:#f4ece7; color:#a65b42; font-size:8px; font-weight:800; }
+.my-page-section-heading { display:flex; align-items:center; justify-content:space-between; margin:22px 3px 10px; }
+.my-page-section-heading h2 { margin:0; font-size:12px; }
+.my-page-summary { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); border-radius:15px; background:#fff; overflow:hidden; }
+.my-page-summary>div { display:grid; justify-items:center; gap:5px; padding:15px 4px 13px; }
+.my-page-summary>div+div { border-left:1px solid var(--line); }
+.my-page-summary svg { color:var(--coral); }
+.my-page-summary strong { font-family:Georgia,serif; font-size:21px; line-height:1; }
+.my-page-summary span { color:#7a8885; font-size:8px; }
+.my-page-menu { overflow:hidden; border:1px solid var(--line); border-radius:15px; background:#fff; }
+.my-page-menu button { width:100%; min-height:59px; padding:9px 13px; border:0; background:#fff; display:grid; grid-template-columns:34px minmax(0,1fr) auto; align-items:center; gap:10px; text-align:left; cursor:default; }
+.my-page-menu button+button { border-top:1px solid var(--line); }
+.my-page-menu-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:#f1f4f0; color:var(--green); }
+.my-page-menu-copy { display:grid; gap:3px; }
+.my-page-menu-copy strong { font-size:11px; }
+.my-page-menu-copy small { color:#899592; font-size:9px; }
+.my-page-menu button>svg { color:#a4aeac; }
+.my-page-footnote { margin:16px 0 0; color:#929d9a; text-align:center; font-size:8px; }
 @media (min-width:700px) { .app-shell { margin-top:20px; margin-bottom:20px; min-height:calc(100dvh - 40px); border-radius:24px; } .bottom-nav { bottom:0; border-radius:0 0 24px 24px; } .fab-layer { bottom:20px; } .back-layer { top:20px; } /* 下は画面の端に合わせます。20px 空けると、その隙間から後ろの記事本文が覗いて
    「モーダルが浮いている」ように見えるためです。上だけ app-shell に合わせます。 */
 .match-modal { bottom:0; height:calc(100dvh - 20px); border-radius:24px 24px 0 0; } }
