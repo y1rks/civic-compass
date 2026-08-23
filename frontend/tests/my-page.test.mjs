@@ -21,10 +21,11 @@ test("ダミーのユーザー情報と活動サマリーを表示する", () =>
 
   assert.match(html, /マイページ/);
   assert.match(html, /コンパスユーザー/);
-  assert.match(html, /ダミーデータ/);
+  assert.doesNotMatch(html, /ダミーデータ/);
   assert.match(html, /保存した記事/);
   assert.match(html, /回答した論点/);
   assert.match(html, /フォロー中/);
+  assert.doesNotMatch(html, /あなたの関心は非公開です/);
 });
 
 test("設定メニューがデモ表示だと分かる", () => {

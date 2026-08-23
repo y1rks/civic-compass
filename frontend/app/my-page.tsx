@@ -1,5 +1,5 @@
 import {
-  Bell, Bookmark, ChevronRight, CircleHelp, Compass, LockKeyhole, Settings, ShieldCheck, UserRound,
+  Bell, Bookmark, ChevronRight, CircleHelp, Compass, LockKeyhole, Settings, UserRound,
 } from "lucide-react";
 
 const MENU_ITEMS = [
@@ -33,14 +33,8 @@ export function MyPage() {
           <span className="my-page-demo-badge">デモ</span>
         </div>
 
-        <div className="my-page-privacy-note">
-          <ShieldCheck size={19} />
-          <div><strong>あなたの関心は非公開です</strong><span>保存した意見や閲覧履歴が他のユーザーに公開されることはありません。</span></div>
-        </div>
-
         <div className="my-page-section-heading">
           <h2>活動サマリー</h2>
-          <span>ダミーデータ</span>
         </div>
         <div className="my-page-summary">
           <div><Bookmark size={18} /><strong>12</strong><span>保存した記事</span></div>

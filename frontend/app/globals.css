@@ -344,14 +344,8 @@ button { color:inherit; }
 .my-page-user-card h2 { margin:0; font-family:Georgia,"Yu Mincho",serif; font-size:16px; }
 .my-page-user-card>div:nth-child(2)>p:last-child { margin:5px 0 0; color:#74827f; font-size:9px; }
 .my-page-demo-badge { align-self:start; padding:4px 8px; border-radius:99px; background:#f4ece7; color:#a65b42; font-size:8px; font-weight:800; }
-.my-page-privacy-note { display:flex; align-items:flex-start; gap:10px; margin:12px 2px 25px; padding:12px 13px; border-radius:12px; background:rgba(220,235,229,.62); color:var(--green); }
-.my-page-privacy-note svg { flex:none; margin-top:1px; }
-.my-page-privacy-note div { display:grid; gap:3px; }
-.my-page-privacy-note strong { font-size:10px; }
-.my-page-privacy-note span { color:#637672; font-size:9px; line-height:1.6; }
 .my-page-section-heading { display:flex; align-items:center; justify-content:space-between; margin:22px 3px 10px; }
 .my-page-section-heading h2 { margin:0; font-size:12px; }
-.my-page-section-heading span { color:#8a9795; font-size:9px; }
 .my-page-summary { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); border-radius:15px; background:#fff; overflow:hidden; }
 .my-page-summary>div { display:grid; justify-items:center; gap:5px; padding:15px 4px 13px; }
 .my-page-summary>div+div { border-left:1px solid var(--line); }
