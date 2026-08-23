@@ -17,10 +17,15 @@ export const MIN_ANSWERS = 5;
  * 出ない**ので、以前の 0.3 は取れない点を分母に置いているのと同じでした。
  * 本人が回答したケースのスコアが 30pt ほど不当に下がっていたため縮めています。
  */
-export const SILENT_WEIGHT = 0.05;
+export const SILENT_WEIGHT = 0.02;
 
-/** 「関心がない」と明示したセルの一致。κ の実測は平均0.53。SILENT より重いのは従来どおり。 */
-export const DECLINED_WEIGHT = 0.1;
+/**
+ * 「関心がない」と明示したセルの一致。κ の実測は平均0.53。SILENT より重いのは従来どおり。
+ *
+ * この2つは分母に入るので、**満点の上限を決めます**。0.05/0.10 だと本人同士でも
+ * 上限が 95% 付近になり、実測で 90%を超えたのは15人中1人でした。
+ */
+export const DECLINED_WEIGHT = 0.04;
 
 /**
  * 突出度を「一致の強さ」に直すときの倍率。
@@ -78,6 +83,24 @@ export const OPPOSITE_ROLE_WEIGHT = 1;
  * （実測で猪瀬直樹の `loyalty_community × 地方 × threat` は score −1.00）。
  */
 export const STRONG_SCORE = 0.5;
+
+/**
+ * 「その向きに立っている」とみなす score の境目。
+ *
+ * `agree` を素の差（`1 - |u.score - p.score| / 2`）で測ると、**本人同士でも一致しません**。
+ * ユーザーは設問に答えると必ず ±1 になるのに、議員側の score は観測の平均なので
+ * +0.58 のような中間値を取るためです。実測で本人一致の平均は 82.4%、
+ * 90%を超えたのは15人中1人だけでした。
+ *
+ * 0.2 は抽出・集計で「どちらの向きか」を判定するのに使っている値と同じです。
+ * これを超えていれば向きは確定とみなし、`agree` は満点になります。
+ * 0.2 未満の帯だけが、中間の値として按分されます。
+ */
+export const SCORE_DIRECTION_THRESHOLD = 0.2;
+
+/** score を「向き」に直します（±1 に飽和）。両側に同じものを掛けます。 */
+const direction = (score: number): number =>
+  Math.max(-1, Math.min(1, score / SCORE_DIRECTION_THRESHOLD));
 
 const OPPOSITE_ROLE = { beneficiary: "threat", threat: "beneficiary" } as const;
 
@@ -304,7 +327,7 @@ export function calculateProfileMatch(
     if (!politicianCell) {
       // 語っていないセルは score -1 の仮想セルとして突き合わせます。
       // ユーザーも下に置いたセルなら一致、重んじたセルなら不一致（寄与ゼロ）になります。
-      const agree = Math.max(0, Math.min(1, 1 - Math.abs(userCell.score - ABSENT_SCORE) / 2));
+      const agree = Math.max(0, Math.min(1, 0.5 + 0.5 * direction(userCell.score) * direction(ABSENT_SCORE)));
       // ★分母からは外しません。「観測できていない」ことをデータ不足として
       //   分母から除くと、**セルの少ない相手が誰にとっても1位**になります。
       //   自己再現テスト（議員本人が設問に答えたら本人が1位に返るか）で、
@@ -325,7 +348,7 @@ export function calculateProfileMatch(
     //   セル数と平均順位の相関 r = 0.61 → -0.04（＝データ量ではなく思想で並ぶようになった）。
     const overlap = userCell.share
       * Math.min(1, Math.log(1 + Math.max(0, distinctiveness)) * EMPHASIS_SCALE);
-    const agree = Math.max(0, Math.min(1, 1 - Math.abs(userCell.score - politicianCell.score) / 2));
+    const agree = Math.max(0, Math.min(1, 0.5 + 0.5 * direction(userCell.score) * direction(politicianCell.score)));
     // 1セルが自分の share を超えて稼がないよう頭打ちにします（重み付き平均を保つため）。
     const contribution = Math.min(overlap * agree, userCell.share);
 
@@ -352,9 +375,14 @@ export function calculateProfileMatch(
     const opposite = politicianMap.get(cellKey({ ...userCell, role: OPPOSITE_ROLE[userCell.role] }));
     if (!opposite || opposite.score <= STRONG_SCORE) continue;
 
-    // 一致側と同じ尺度（ユーザーの share × 突出度）で引きます。
+    // ★同じ役割でも語っているなら、**逆役割の比重ぶんだけ**引きます。
+    //   両面から語る議員（田村智子の `fairness × 大企業・産業` など）は、
+    //   満額で引くと**本人の回答に対しても減点**され、自己一致が 13pt 下がっていました。
+    const same = politicianMap.get(cellKey(userCell));
+    const oppositeRatio = same ? opposite.share / (opposite.share + same.share) : 1;
     const weight = userCell.share
       * Math.min(1, Math.log(1 + Math.max(0, opposite.distinctiveness ?? 1)) * EMPHASIS_SCALE)
+      * oppositeRatio
       * OPPOSITE_ROLE_WEIGHT;
     numerator -= weight;
     oppositions.push({
