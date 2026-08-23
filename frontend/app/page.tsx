@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, Check, ChevronLeft, ChevronRight, Compass,
-  ExternalLink, Heart, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, Triangle, X,
+  ExternalLink, Heart, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, Triangle, UserRound, X,
 } from "lucide-react";
 import {
   getAnswers, getArticles, getPerspectives, getProfileMatches, getUserProfileCells, saveAnswer,
@@ -17,9 +17,10 @@ import { analysisDepth } from "../lib/analysis-depth";
 import { OpinionSheet } from "./opinion-sheet";
 import { ProfileTrends } from "./profile-trends";
 import { ProfileMatches } from "./profile-matches";
+import { MyPage } from "./my-page";
 import type { Answers } from "./question-block";
 
-type Screen = "feed" | "detail" | "profile";
+type Screen = "feed" | "detail" | "profile" | "mypage";
 
 /** 設問への回答が一致するか。キーの順序に依存しないよう、中身で比べます。 */
 function sameSelections(a: Answers, b: Answers): boolean {
@@ -255,6 +256,7 @@ export default function HomePage() {
         />
       )}
       {screen === "profile" && <Profile matchResult={profileMatchResult} matchesStatus={profileMatchesStatus} savedCount={Object.keys(saved).length} depth={analysisDepth(articles, saved)} cells={profileCells} cellsStatus={profileCellsStatus} />}
+      {screen === "mypage" && <MyPage />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
       {modalOpen && selected && (
         <PerspectiveModal
@@ -614,6 +616,7 @@ function BottomNav({ screen, onChange }: { screen: Screen; onChange: (screen: Sc
     <nav className="bottom-nav" aria-label="メインナビゲーション">
       <button className={screen === "feed" ? "active" : ""} onClick={() => onChange("feed")}><Home size={21} /><span>ニュース</span></button>
       <button className={`compass-action ${screen === "profile" ? "active" : ""}`} onClick={() => onChange("profile")}><Compass size={21} /><span>政治コンパス</span></button>
+      <button className={screen === "mypage" ? "active" : ""} onClick={() => onChange("mypage")}><UserRound size={21} /><span>マイページ</span></button>
     </nav>
   );
 }
