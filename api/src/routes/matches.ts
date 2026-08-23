@@ -1,12 +1,15 @@
 import { Hono } from "hono";
-import { userProfileKey, type UserProfile } from "@civic-compass/shared";
+import {
+  MIN_PROFILE_MATCH_ANSWERS,
+  userProfileKey,
+  type UserProfile,
+} from "@civic-compass/shared";
 import type { AppEnv } from "../bindings";
 import { requireCurrentUser } from "../session";
 import { politicianMatches } from "../data/politicians";
 import politiciansMaster from "../../../scripts/kokkai/politicians.json";
 import partiesMaster from "../../../scripts/kokkai/parties.json";
 import {
-  MIN_ANSWERS,
   calculateProfileMatch,
   isPartyProfile,
   isPoliticianProfile,
@@ -31,6 +34,12 @@ const DISCLAIMER = "これは参考情報であり、特定の候補者や政党
 const MAX_MATCHES = 7;
 
 const INSUFFICIENT_SUMMARY = "もう少しニュースへの考えを保存すると、考えが近い政治家を分析できます。";
+
+const insufficientAnswersSummary = (answerCount: number): string => {
+  const remaining = Math.max(0, MIN_PROFILE_MATCH_ANSWERS - answerCount);
+  if (remaining === 0) return INSUFFICIENT_SUMMARY;
+  return `政治コンパスを表示するには、あと${remaining}件のニュースへの考えを保存してください（合計${MIN_PROFILE_MATCH_ANSWERS}件必要です）。`;
+};
 
 type PoliticianMaster = {
   speaker_id: string;
@@ -96,14 +105,14 @@ matches.get("/profile", requireCurrentUser, async (c) => {
   try {
     const rawUser = await c.env.USER_PROFILES.get<unknown>(userProfileKey(currentUserId), "json");
 
-    if (rawUser === null) return c.json(unreliableResponse(currentUserId));
+    if (rawUser === null) return c.json(unreliableResponse(currentUserId, insufficientAnswersSummary(0)));
     if (!isUserProfile(rawUser) || rawUser.user_id !== currentUserId) {
       return c.json({ status: "error", message: "ユーザープロファイルの形式が不正です。" }, 500);
     }
 
     const user: UserProfile = rawUser;
-    if (user.cells.length === 0 || user.n_answers < MIN_ANSWERS) {
-      return c.json(unreliableResponse(user.user_id));
+    if (user.cells.length === 0 || user.n_answers < MIN_PROFILE_MATCH_ANSWERS) {
+      return c.json(unreliableResponse(user.user_id, insufficientAnswersSummary(user.n_answers)));
     }
 
     const [universe, rawProfiles] = await Promise.all([

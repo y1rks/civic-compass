@@ -125,10 +125,23 @@ test("同率のあとの順位はその件数ぶん飛ばす", () => {
 });
 
 test("信頼性不足なら追加回答を促す", () => {
-  const html = render({ result: { ...result, reliable: false, matches: [], user_summary: "もう少し回答してください。" } });
-  assert.match(html, /もう少し回答が必要です/);
-  assert.match(html, /もう少し回答してください/);
+  const html = render({
+    savedCount: 3,
+    result: {
+      ...result,
+      reliable: false,
+      matches: [],
+      user_summary: "政治コンパスを表示するには、あと1件のニュースへの考えを保存してください（合計4件必要です）。",
+    },
+  });
+  assert.match(html, /あと1件の回答が必要です/);
+  assert.match(html, /合計4件必要です/);
   assert.doesNotMatch(html, /高市早苗/);
+});
+
+test("回答がない場合も必要な合計件数を表示する", () => {
+  const html = render({ savedCount: 0, result: null });
+  assert.match(html, /合計4件保存してください/);
 });
 
 test("取得失敗を画面内に表示する", () => {

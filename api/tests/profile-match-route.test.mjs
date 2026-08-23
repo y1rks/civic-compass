@@ -7,7 +7,7 @@ const userProfile = {
   user_id: "test_user1",
   computed_at: "2026-08-22T00:00:00.000Z",
   profile_version: "user-profile-v1.0",
-  n_answers: 5,
+  n_answers: 4,
   n_selections: 10,
   cells: [
     { frame: "care_harm", target: "自然環境", role: "beneficiary", score: 1, share: 0.5, n: 1 },
@@ -159,12 +159,14 @@ test("政党も上位7党までにする", async () => {
   assert.deepEqual(data.party_matches.map((party) => party.party), names.slice(0, 7));
 });
 
-test("回答が5記事未満なら議員プロファイルを読まず信頼性不足を返す", async () => {
-  const { response, calls } = await request({ user: { ...userProfile, n_answers: 4 } });
+test("回答が4記事未満なら必要件数を示し、議員プロファイルを読まず信頼性不足を返す", async () => {
+  const { response, calls } = await request({ user: { ...userProfile, n_answers: 3 } });
   const data = await response.json();
 
   assert.equal(data.reliable, false);
   assert.deepEqual(data.matches, []);
+  assert.match(data.user_summary, /あと1件/);
+  assert.match(data.user_summary, /合計4件必要/);
   assert.equal(calls.length, 0);
 });
 
@@ -172,6 +174,7 @@ test("ユーザープロファイルがなければ信頼性不足を返す", as
   const data = await (await request({ user: null })).response.json();
   assert.equal(data.reliable, false);
   assert.deepEqual(data.party_matches, []);
+  assert.match(data.user_summary, /あと4件/);
 });
 
 test("cellidxのキー一覧を最終ページまで読む", async () => {
