@@ -486,7 +486,22 @@ distinctiveness = (share + PRIOR) / (全政党の平均share + PRIOR)
 ### `users`
 
 `user_id` / `name` / `email`（一意）/ `last_login_at` / `created_at`。
-認証はまだ無く、`email` は連絡先兼一意キーであって認証済みを意味しない。
+初回アクセス時に入力された名前でユーザーを作る。ログイン機能はなく、ブラウザCookieと
+`user_sessions`の対応がユーザーを識別する唯一の手段になる。利用者にメール入力は求めず、
+匿名ユーザーの`email`には`.invalid`予約ドメインの内部値を自動生成する。
+
+### `user_sessions`
+
+| 列 | 意味 |
+|---|---|
+| `token_hash` | Cookieへ発行した256ビットトークンのSHA-256ハッシュ。生トークンは保存しない |
+| `user_id` | `users.user_id`への外部キー |
+| `created_at` | セッション作成時刻 |
+| `last_seen_at` | セッション作成時点の最終利用時刻。更新処理を追加するまでは`created_at`と同じ |
+| `expires_at` | セッションの有効期限 |
+
+Cookieを削除すると以前のユーザーを復元できず、次の名前入力で新しいユーザーになる。
+Cookieの値や`user_id`をログへ出さないこと。
 
 ### `answers` —— 1ユーザー × 1記事
 

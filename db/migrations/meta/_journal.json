@@ -57,6 +57,13 @@
       "when": 1787694641361,
       "tag": "0007_flippant_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1787453136718,
+      "tag": "0008_warm_makkari",
+      "breakpoints": true
     }
   ]
 }

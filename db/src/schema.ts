@@ -265,10 +265,11 @@ export type NewArticleQuestionOption = typeof articleQuestionOptions.$inferInser
 const ANSWER_SOURCES = ["question", "llm"] as const;
 
 /**
- * 回答の持ち主。id / name / email が必須です。
+ * 回答の持ち主。初回利用時に入力するのは名前だけです。
  *
- * パスワードや認証情報は持ちません。プロトタイプでは本人確認をしないので、
- * `email` は連絡先兼一意キーであって、認証済みであることを意味しません。
+ * email は将来のアカウント機能との互換性のため残し、匿名ユーザーには予約ドメインの
+ * 内部値を入れます。パスワードや認証情報は持たず、ブラウザとの対応は
+ * user_sessions で管理します。
  */
 export const users = sqliteTable(
   "users",
@@ -286,6 +287,29 @@ export const users = sqliteTable(
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (t) => [uniqueIndex("users_email_idx").on(t.email)],
+);
+
+/**
+ * ブラウザCookieとユーザーを結び付ける匿名セッション。
+ *
+ * Cookieに入れる生のトークンは保存せず、SHA-256ハッシュだけを主キーとして保持します。
+ * ログイン機能はないため、Cookieを失うと元のユーザーへ戻すことはできません。
+ */
+export const userSessions = sqliteTable(
+  "user_sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.userId),
+    createdAt: text("created_at").notNull(),
+    lastSeenAt: text("last_seen_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+  },
+  (t) => [
+    index("user_sessions_user_idx").on(t.userId),
+    index("user_sessions_expires_idx").on(t.expiresAt),
+  ],
 );
 
 /**
@@ -373,6 +397,8 @@ export const answerSelections = sqliteTable(
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type UserSession = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;
 export type Answer = typeof answers.$inferSelect;
 export type NewAnswer = typeof answers.$inferInsert;
 export type AnswerSelection = typeof answerSelections.$inferSelect;

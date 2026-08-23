@@ -8,10 +8,12 @@ import {
   createDb,
 } from "@civic-compass/db";
 import type { AppEnv } from "../bindings";
-import { CURRENT_USER_ID } from "../current-user";
+import { requireCurrentUser } from "../session";
 import { buildUserProfile, saveUserProfile } from "../user-profile";
 
 const answers = new Hono<AppEnv>();
+
+answers.use("*", requireCurrentUser);
 
 /** 自由記述の上限。フロントの textarea の maxLength と揃えています。 */
 const COMMENT_MAX = 160;
@@ -30,10 +32,11 @@ const isStance = (value: unknown): value is (typeof STANCES)[number] =>
 
 /** いまログインしているユーザーの回答一覧。記事を開き直したときの復元に使います。 */
 answers.get("/", async (c) => {
+  const currentUserId = c.get("currentUser").userId;
   const db = createDb(c.env.DB);
 
   const [answerRows, selectionRows] = await Promise.all([
-    db.select().from(answersTable).where(eq(answersTable.userId, CURRENT_USER_ID)),
+    db.select().from(answersTable).where(eq(answersTable.userId, currentUserId)),
     db
       .select({
         answerId: answerSelections.answerId,
@@ -42,7 +45,7 @@ answers.get("/", async (c) => {
       })
       .from(answerSelections)
       .innerJoin(answersTable, eq(answersTable.answerId, answerSelections.answerId))
-      .where(eq(answersTable.userId, CURRENT_USER_ID)),
+      .where(eq(answersTable.userId, currentUserId)),
   ]);
 
   const selectionsByAnswer = new Map<string, Record<string, string>>();
@@ -65,6 +68,7 @@ answers.get("/", async (c) => {
 
 /** 「この記事への意見」の保存。同じ記事に答え直すと上書きします。 */
 answers.post("/", async (c) => {
+  const currentUserId = c.get("currentUser").userId;
   const body: unknown = await c.req.json().catch(() => null);
   if (typeof body !== "object" || body === null) {
     return c.json({ status: "error", message: "JSON body is required" }, 400);
@@ -123,7 +127,7 @@ answers.post("/", async (c) => {
     return c.json({ status: "error", message: "selections contains a question from another article", strayIds }, 400);
   }
 
-  const id = answerId(CURRENT_USER_ID, articleId);
+  const id = answerId(currentUserId, articleId);
   const now = new Date().toISOString();
 
   // 3文を1バッチで流します。選択肢の入れ替え中に読まれると
@@ -134,7 +138,7 @@ answers.post("/", async (c) => {
       .insert(answersTable)
       .values({
         answerId: id,
-        userId: CURRENT_USER_ID,
+        userId: currentUserId,
         articleId,
         interest,
         opinionText: comment ?? null,
@@ -167,11 +171,10 @@ answers.post("/", async (c) => {
   // 派生データで、ここで 500 を返すと「保存できていないのか」が利用者に分からなく
   // なるためです。
   try {
-    await saveUserProfile(c.env.USER_PROFILES, await buildUserProfile(db, CURRENT_USER_ID, now));
+    await saveUserProfile(c.env.USER_PROFILES, await buildUserProfile(db, currentUserId, now));
   } catch (error) {
     console.error(JSON.stringify({
       message: "Failed to update user profile",
-      userId: CURRENT_USER_ID,
       error: error instanceof Error ? error.message : String(error),
     }));
   }

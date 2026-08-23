@@ -6,6 +6,12 @@
  */
 export type Bindings = Pick<Env, "DB" | "PROFILES" | "USER_PROFILES">;
 
+/** Cookieから解決した、現在のリクエストのユーザー。 */
+export type CurrentUser = {
+  userId: string;
+  name: string;
+};
+
 /**
  * 各ルーターはこの型で Hono を生成します。
  *
@@ -15,4 +21,7 @@ export type Bindings = Pick<Env, "DB" | "PROFILES" | "USER_PROFILES">;
  */
 export type AppEnv = {
   Bindings: Bindings;
+  Variables: {
+    currentUser: CurrentUser;
+  };
 };

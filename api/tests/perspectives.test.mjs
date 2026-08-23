@@ -2,6 +2,7 @@
 // 「どの論点を、誰の、どの発言で見せるか」を検証します。
 import assert from "node:assert/strict";
 import test from "node:test";
+import { withSessionCookie, withSessionDb } from "./session-fixture.mjs";
 
 // perspectives.ts の select と同じ列順。
 // （interest, questionId, prompt, stance, frame, target, role）
@@ -133,7 +134,11 @@ async function request(path, db = createDbMock(), kv = createKvMock()) {
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${Math.random()}`);
   const { default: app } = await import(workerUrl.href);
 
-  const response = await app.fetch(new Request(`http://localhost${path}`), { DB: db, PROFILES: kv }, {});
+  const response = await app.fetch(
+    new Request(`http://localhost${path}`, withSessionCookie()),
+    { DB: withSessionDb(db), PROFILES: kv },
+    {},
+  );
   return { response, kv };
 }
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { withSessionCookie, withSessionDb } from "./session-fixture.mjs";
 
 const baseCell = {
   frame: "care_harm",
@@ -20,7 +21,11 @@ async function request(raw) {
     assert.equal(key, "profile:user:test_user1");
     return raw;
   } };
-  return app.fetch(new Request("http://localhost/api/user-profile"), { USER_PROFILES: kv }, {});
+  return app.fetch(
+    new Request("http://localhost/api/user-profile", withSessionCookie()),
+    { DB: withSessionDb(), USER_PROFILES: kv },
+    {},
+  );
 }
 
 test("scoreが高い順に上位3セルを返す", async () => {

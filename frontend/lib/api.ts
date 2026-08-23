@@ -26,9 +26,14 @@ type CurrentUserResponse = {
   user: CurrentUser;
 };
 
+type SessionResponse = {
+  user: CurrentUser | null;
+};
+
 async function requestJson<T>(path: string, init: RequestInit | undefined, errorMessage: string): Promise<T> {
   const response = await fetch(path, {
     ...init,
+    credentials: "same-origin",
     headers: {
       accept: "application/json",
       ...init?.headers,
@@ -40,6 +45,22 @@ async function requestJson<T>(path: string, init: RequestInit | undefined, error
   }
 
   return await response.json() as T;
+}
+
+/** Cookieに対応するユーザーを確認します。初回利用時は null です。 */
+export async function getSession(): Promise<CurrentUser | null> {
+  const data = await requestJson<SessionResponse>("/api/session", undefined, "利用情報の確認に失敗しました");
+  return data.user;
+}
+
+/** 初回入力の名前でユーザーを作成し、Cookieセッションを開始します。 */
+export async function createSession(name: string): Promise<CurrentUser> {
+  const data = await requestJson<CurrentUserResponse>("/api/session", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  }, "ユーザーの作成に失敗しました");
+  return data.user;
 }
 
 export async function getArticles(): Promise<Article[]> {

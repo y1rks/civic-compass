@@ -1,41 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { withSessionCookie, withSessionDb } from "./session-fixture.mjs";
 
-function createDbMock(row) {
-  return {
-    prepare(query) {
-      assert.match(query, /SELECT user_id, name FROM users/);
-      return {
-        bind(userId) {
-          assert.equal(userId, "test_user1");
-          return this;
-        },
-        first: async () => row,
-      };
-    },
-  };
-}
-
-async function request(row) {
+async function request({ user, cookie = true } = {}) {
   const workerUrl = new URL("../dist/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${Math.random()}`);
   const { default: app } = await import(workerUrl.href);
 
-  return app.fetch(new Request("http://localhost/api/user"), { DB: createDbMock(row) }, {});
+  return app.fetch(
+    new Request("http://localhost/api/user", cookie ? withSessionCookie() : undefined),
+    { DB: withSessionDb({}, user) },
+    {},
+  );
 }
 
-test("現在のユーザーIDと名前をD1から返す", async () => {
-  const response = await request({ user_id: "test_user1", name: "山田 太郎" });
+test("Cookieから解決したユーザーIDと名前を返す", async () => {
+  const response = await request({ user: { user_id: "user-123", name: "山田 太郎" } });
   const data = await response.json();
 
   assert.equal(response.status, 200);
-  assert.deepEqual(data, { user: { user_id: "test_user1", name: "山田 太郎" } });
+  assert.deepEqual(data, { user: { user_id: "user-123", name: "山田 太郎" } });
+  assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
-test("現在のユーザーがusersテーブルに存在しなければ404を返す", async () => {
-  const response = await request(null);
-  const data = await response.json();
+test("Cookieがなければ401を返す", async () => {
+  const response = await request({ cookie: false });
+  assert.equal(response.status, 401);
+});
 
-  assert.equal(response.status, 404);
-  assert.equal(data.message, "User not found");
+test("Cookieに対応するユーザーが存在しなければ401を返す", async () => {
+  const response = await request({ user: null });
+  assert.equal(response.status, 401);
 });

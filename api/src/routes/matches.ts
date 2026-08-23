@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { userProfileKey, type UserProfile } from "@civic-compass/shared";
 import type { AppEnv } from "../bindings";
-import { CURRENT_USER_ID } from "../current-user";
+import { requireCurrentUser } from "../session";
 import { politicianMatches } from "../data/politicians";
 import politiciansMaster from "../../../scripts/kokkai/politicians.json";
 import partiesMaster from "../../../scripts/kokkai/parties.json";
@@ -91,12 +91,13 @@ const unreliableResponse = (userId: string, summary = INSUFFICIENT_SUMMARY) => (
 });
 
 /** 政治コンパス画面に表示する、現在のユーザーの総合マッチです。 */
-matches.get("/profile", async (c) => {
+matches.get("/profile", requireCurrentUser, async (c) => {
+  const currentUserId = c.get("currentUser").userId;
   try {
-    const rawUser = await c.env.USER_PROFILES.get<unknown>(userProfileKey(CURRENT_USER_ID), "json");
+    const rawUser = await c.env.USER_PROFILES.get<unknown>(userProfileKey(currentUserId), "json");
 
-    if (rawUser === null) return c.json(unreliableResponse(CURRENT_USER_ID));
-    if (!isUserProfile(rawUser) || rawUser.user_id !== CURRENT_USER_ID) {
+    if (rawUser === null) return c.json(unreliableResponse(currentUserId));
+    if (!isUserProfile(rawUser) || rawUser.user_id !== currentUserId) {
       return c.json({ status: "error", message: "ユーザープロファイルの形式が不正です。" }, 500);
     }
 
@@ -202,7 +203,6 @@ matches.get("/profile", async (c) => {
   } catch (error) {
     console.error(JSON.stringify({
       message: "総合マッチの生成に失敗しました。",
-      userId: CURRENT_USER_ID,
       error: error instanceof Error ? error.message : String(error),
     }));
     return c.json({ status: "error", message: "総合マッチを取得できませんでした。" }, 500);
