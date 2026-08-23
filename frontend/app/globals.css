@@ -342,12 +342,11 @@ button { color:inherit; }
 .my-page-header h1 { margin:8px 0; font-family:Georgia,"Yu Mincho",serif; font-size:29px; }
 .my-page-header>p:last-child { margin:0; color:rgba(255,255,255,.65); font-size:11px; }
 .my-page-content { padding:18px 16px 28px; }
-.my-page-user-card { position:relative; display:grid; grid-template-columns:56px minmax(0,1fr) auto; align-items:center; gap:13px; padding:17px; border:1px solid var(--line); border-radius:17px; background:#fff; box-shadow:0 4px 18px rgba(26,49,45,.05); }
+.my-page-user-card { position:relative; display:grid; grid-template-columns:56px minmax(0,1fr); align-items:center; gap:13px; padding:17px; border:1px solid var(--line); border-radius:17px; background:#fff; box-shadow:0 4px 18px rgba(26,49,45,.05); }
 .my-page-avatar { width:56px; height:56px; display:grid; place-items:center; border-radius:50%; background:var(--mint); color:var(--green); }
 .my-page-user-label { margin:0 0 3px; color:#899592; font-size:9px; }
 .my-page-user-card h2 { margin:0; font-family:Georgia,"Yu Mincho",serif; font-size:16px; }
 .my-page-user-card>div:nth-child(2)>p:last-child { margin:5px 0 0; color:#74827f; font-size:9px; }
-.my-page-demo-badge { align-self:start; padding:4px 8px; border-radius:99px; background:#f4ece7; color:#a65b42; font-size:8px; font-weight:800; }
 .my-page-section-heading { display:flex; align-items:center; justify-content:space-between; margin:22px 3px 10px; }
 .my-page-section-heading h2 { margin:0; font-size:12px; }
 .my-page-summary { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); border-radius:15px; background:#fff; overflow:hidden; }

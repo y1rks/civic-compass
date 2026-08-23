@@ -1,6 +1,7 @@
 import {
   Bell, Bookmark, ChevronRight, CircleHelp, Compass, LockKeyhole, Settings, UserRound,
 } from "lucide-react";
+import type { CurrentUser } from "../lib/types";
 
 const MENU_ITEMS = [
   { icon: Settings, label: "アカウント設定", detail: "プロフィールや表示名" },
@@ -10,10 +11,16 @@ const MENU_ITEMS = [
 ];
 
 /**
- * API 接続前の表示確認用マイページ。
- * 数値・ユーザー情報・メニューはすべて固定のダミー表示です。
+ * ユーザー名とユーザーIDはD1の値を表示します。
+ * 活動サマリーとメニューは、引き続き表示確認用のダミーです。
  */
-export function MyPage() {
+export function MyPage({ user, status }: {
+  user: CurrentUser | null;
+  status: "loading" | "ready" | "error";
+}) {
+  const userName = status === "ready" && user ? user.name : status === "error" ? "ユーザー情報を読み込めませんでした" : "読み込み中";
+  const userId = status === "ready" && user ? `ユーザーID：${user.user_id}` : status === "error" ? "時間をおいて再度お試しください" : "ユーザー情報を取得しています";
+
   return (
     <div className="screen my-page-screen">
       <header className="my-page-header">
@@ -27,10 +34,9 @@ export function MyPage() {
           <div className="my-page-avatar" aria-hidden="true"><UserRound size={30} /></div>
           <div>
             <p className="my-page-user-label">表示名</p>
-            <h2>コンパスユーザー</h2>
-            <p>civic-compass を利用中</p>
+            <h2>{userName}</h2>
+            <p role="status">{userId}</p>
           </div>
-          <span className="my-page-demo-badge">デモ</span>
         </div>
 
         <div className="my-page-section-heading">

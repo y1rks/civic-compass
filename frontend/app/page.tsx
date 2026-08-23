@@ -6,10 +6,10 @@ import {
   ExternalLink, Heart, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, Triangle, UserRound, X,
 } from "lucide-react";
 import {
-  getAnswers, getArticles, getPerspectives, getProfileMatches, getUserProfileCells, saveAnswer,
+  getAnswers, getArticles, getCurrentUser, getPerspectives, getProfileMatches, getUserProfileCells, saveAnswer,
 } from "../lib/api";
 import type {
-  Article, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement,
+  Article, CurrentUser, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement,
   ProfileMatchesResponse, SavedAnswer, UserProfileCell,
 } from "../lib/types";
 import { DEFAULT_INTEREST, interestIndex, interestLabel, isInterested } from "../lib/interest";
@@ -46,6 +46,8 @@ export default function HomePage() {
   const [profileMatchesStatus, setProfileMatchesStatus] = useState<"loading" | "ready" | "error">("loading");
   const [profileCells, setProfileCells] = useState<UserProfileCell[]>([]);
   const [profileCellsStatus, setProfileCellsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [currentUserStatus, setCurrentUserStatus] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -162,6 +164,26 @@ export default function HomePage() {
   }, [saved, screen]);
 
   useEffect(() => {
+    if (screen !== "mypage") return;
+
+    let cancelled = false;
+    void getCurrentUser()
+      .then((user) => {
+        if (cancelled) return;
+        setCurrentUser(user);
+        setCurrentUserStatus("ready");
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load current user", error);
+        if (!cancelled) setCurrentUserStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [screen]);
+
+  useEffect(() => {
     if (screen !== "feed" || visibleCount >= articles.length) return;
     const observer = new IntersectionObserver((entries) => {
       if (!entries[0]?.isIntersecting) return;
@@ -256,7 +278,7 @@ export default function HomePage() {
         />
       )}
       {screen === "profile" && <Profile matchResult={profileMatchResult} matchesStatus={profileMatchesStatus} savedCount={Object.keys(saved).length} depth={analysisDepth(articles, saved)} cells={profileCells} cellsStatus={profileCellsStatus} />}
-      {screen === "mypage" && <MyPage />}
+      {screen === "mypage" && <MyPage user={currentUser} status={currentUserStatus} />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
       {modalOpen && selected && (
         <PerspectiveModal
