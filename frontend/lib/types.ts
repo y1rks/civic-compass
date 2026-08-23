@@ -190,6 +190,8 @@ export type PoliticianProfileMatch = {
   party: string;
   house: string;
   website: string;
+  /** 「特に効率と実利を重んじる…傾向。」バッチが cells から作った要約です。 */
+  summary: string;
   match_score: number;
   matched_cells: number;
   reasons: ProfileMatchReason[];
@@ -217,6 +219,8 @@ export type PartyProfileMatch = {
    * 何を根拠にした数字かは画面で断ります（docs/design-constraints.md「中立性」）。
    */
   source: "manifesto" | "members" | "mixed";
+  /** 「特に公正さを重んじる…傾向。」バッチが cells から作った要約です。 */
+  summary: string;
   match_score: number;
   matched_cells: number;
   n_politicians: number;

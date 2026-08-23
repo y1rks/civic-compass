@@ -26,6 +26,7 @@ const result = {
     party: "自由民主党",
     house: "衆議院",
     website: "https://example.com/politician",
+    summary: "特に効率と実利を重んじる傾向。",
     match_score: 78,
     matched_cells: 3,
     reasons: [],
@@ -47,7 +48,8 @@ test("総合マッチAPIの議員名・所属・マッチ度を表示する", ()
   assert.match(html, /高市早苗/);
   assert.match(html, /自由民主党・衆議院/);
   assert.match(html, /78\.0<small>%/);
-  assert.match(html, /被害や苦痛への配慮/);
+  // 傾向の要約文は画面に出しません（回答が足りないときの案内にだけ残しています）。
+  assert.doesNotMatch(html, /被害や苦痛への配慮/);
   assert.match(html, /href="https:\/\/example.com\/politician"/);
 });
 
@@ -58,6 +60,7 @@ const partyMatch = {
   website: "https://www.jimin.jp/",
   seats: { shugiin: 316, sangiin: 101 },
   color: "#3CA324",
+  summary: "特に公正さを重んじる傾向。",
   source: "mixed",
   match_score: 62,
   matched_cells: 2,

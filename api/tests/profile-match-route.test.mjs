@@ -98,6 +98,7 @@ test("総合マッチをGETで返し、evidence は読まない", async () => {
     website: "https://www.jimin.jp/",
     seats: { shugiin: 316, sangiin: 101 },
     color: "#3CA324",
+    summary: "",
     source: "members",
     match_score: 100,
     matched_cells: 2,

@@ -159,6 +159,8 @@ matches.get("/profile", async (c) => {
       party: profile.party,
       house: profile.house,
       website: master.website,
+      // バッチが cells から作った傾向の要約。カードに出します。
+      summary: profile.summary ?? "",
       match_score: result.match_score,
       matched_cells: result.matched_cells,
       reasons: result.reasons,
@@ -177,6 +179,7 @@ matches.get("/profile", async (c) => {
         website: master.website,
         seats: master.seats,
         color: master.color,
+        summary: profile.summary ?? "",
         // manifesto（公約のみ）/ members（所属議員のみ）/ mixed。画面で出典を断るために返します。
         source: profile.source ?? "members",
         match_score: result.match_score,

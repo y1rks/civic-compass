@@ -92,6 +92,7 @@ function PoliticianCard({ match, rank, index }: { match: PoliticianProfileMatch;
         <div className="mini-track"><span style={{ width: `${match.match_score}%` }} /></div>
       </div>
       <div className="profile-score"><strong>{score(match.match_score)}<small>%</small></strong><ArrowUpRight size={16} /></div>
+      {match.summary ? <p className="match-summary">{match.summary}</p> : null}
     </a>
   );
 }
@@ -112,6 +113,7 @@ function PartyCard({ match, rank }: { match: PartyProfileMatch; rank: number }) 
         <div className="mini-track"><span style={{ width: `${match.match_score}%` }} /></div>
       </div>
       <div className="profile-score"><strong>{score(match.match_score)}<small>%</small></strong><ArrowUpRight size={16} /></div>
+      {match.summary ? <p className="match-summary">{match.summary}</p> : null}
     </a>
   );
 }
@@ -149,7 +151,9 @@ export function ProfileMatches({
 
   return (
     <>
-      <p className="profile-match-summary">{result.user_summary}</p>
+      {/* 出所の断り書きは見出しの直下に出します（リストの末尾だと読まれないため）。
+          タブに関わらず常に出します。 */}
+      {note ? <p className="match-tab-note">{note}</p> : null}
       <div className="match-tabs" role="tablist" aria-label="マッチの表示対象">
         <button
           type="button"
@@ -193,7 +197,6 @@ export function ProfileMatches({
                   ))}
                 </div>
                 <MoreToggle total={parties.length} expanded={expanded.parties} onToggle={toggle} controls="match-list-parties" />
-                {note ? <p className="match-tab-note">{note}</p> : null}
               </>
             )}
         </div>

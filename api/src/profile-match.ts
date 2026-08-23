@@ -137,6 +137,8 @@ export type PoliticianProfile = {
   politician_name: string;
   party: string;
   house: string;
+  /** バッチが cells から作る傾向の要約。テンプレート生成で、LLM は使っていません。 */
+  summary?: string;
   cells: MatchCell[];
 };
 
@@ -144,6 +146,8 @@ export type PartyProfile = {
   party: string;
   /** manifesto（公約のみ）| members（所属議員のみ）| mixed（両方） */
   source?: "manifesto" | "members" | "mixed";
+  /** バッチが cells から作る傾向の要約。テンプレート生成で、LLM は使っていません。 */
+  summary?: string;
   n_politicians: number;
   politicians: string[];
   cells: MatchCell[];
@@ -221,6 +225,7 @@ export const isPoliticianProfile = (value: unknown): value is PoliticianProfile 
   if (typeof value !== "object" || value === null) return false;
   const profile = value as Record<string, unknown>;
   return typeof profile.speaker_id === "string"
+    && (profile.summary === undefined || typeof profile.summary === "string")
     && typeof profile.politician_name === "string"
     && typeof profile.party === "string"
     && typeof profile.house === "string"
@@ -232,6 +237,7 @@ export const isPartyProfile = (value: unknown): value is PartyProfile => {
   if (typeof value !== "object" || value === null) return false;
   const profile = value as Record<string, unknown>;
   return typeof profile.party === "string"
+    && (profile.summary === undefined || typeof profile.summary === "string")
     && (profile.source === undefined
       || profile.source === "manifesto" || profile.source === "members" || profile.source === "mixed")
     // 公約だけで作った政党は所属議員が0人になります（国会発言のない党もマッチ対象にするため）。
