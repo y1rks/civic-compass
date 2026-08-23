@@ -1,0 +1,421 @@
+{
+  "_note": [
+    "政党マスタ。party_id は【1】utterances / 【2】profile:party のキーになるので採番後は変更しない。",
+    "name は politicians.json の party と一致させること（議員プロファイルと突き合わせるため）。",
+    "対象は『国会（衆参いずれか）に議席を持つ政党』。会派ではなく政党単位で持つ。",
+    "  衆議院: 第51回総選挙（2026-02-08投開票）の確定議席。会派別所属議員数のページは",
+    "          令和8年2月18日時点で非公開のため、選挙結果を出典にしている。",
+    "  参議院: 会派別所属議員数（令和8年8月22日現在）。会派名から政党を割り出している。",
+    "web_sources は公約・基本政策のページ。discover-web.mjs --target=parties で候補を出し、手で確定させる。",
+    "議員サイトと同じく、政党サイトの文章も著作物なので quotable: false（要約＋リンクで扱う）。",
+    "color は Wikipedia の Template:政党色（2026年2月時点）に載っている各党の政党色。UI のアイコンにだけ使う。",
+    "  いのちの党は旧れいわ新選組の色、減税日本は「減税日本・ゆうこく連合」の色を引き継ぐ。",
+    "  中道改革連合はテンプレートに無いため暫定色（旧立憲 #184589 と旧公明 #F55881 の中間）。",
+    "web_sources は discover-web.mjs --target=parties の候補から手で選んだもの（2026-08-23 確認）。",
+    "チームみらいは公約を policy.team-mir.ai に置いているため、公式サイトとは別ホストを指定している。",
+    "沖縄の風（参院2）は無所属議員を含む会派で政党ではないため、対象に入れていない。"
+  ],
+  "as_of": "2026-08-23",
+  "_extract_window_note": [
+    "公約は『現在の主張』なので、議員発言のように期間で切る必要はない。",
+    "ただし日付が読めるページ（プレスリリース等）は議員と同じ窓で揃える。"
+  ],
+  "extract_window": {
+    "from": "2020-08-01",
+    "to": "2026-08-22"
+  },
+  "parties": [
+    {
+      "party_id": "PT01",
+      "name": "自由民主党",
+      "short_name": "自民",
+      "aliases": [
+        "自民党",
+        "自由民主党・無所属の会"
+      ],
+      "seats": {
+        "shugiin": 316,
+        "sangiin": 101
+      },
+      "website": "https://www.jimin.jp/",
+      "color": "#3CA324",
+      "web_sources": [
+        {
+          "url": "https://www.jimin.jp/policy/",
+          "label": "重点政策",
+          "follow": true
+        },
+        {
+          "url": "https://www.jimin.jp/aboutus/declaration/",
+          "label": "立党宣言・綱領",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "衆院第一党。維新と連立。"
+    },
+    {
+      "party_id": "PT02",
+      "name": "中道改革連合",
+      "short_name": "中道",
+      "aliases": [
+        "中道"
+      ],
+      "seats": {
+        "shugiin": 49,
+        "sangiin": 0
+      },
+      "website": "https://craj.jp/",
+      "color": "#864E85",
+      "web_sources": [
+        {
+          "url": "https://craj.jp/election2026/policies/",
+          "label": "2026衆院選主要政策",
+          "follow": true
+        },
+        {
+          "url": "https://craj.jp/party/policies/",
+          "label": "基本政策",
+          "follow": true
+        },
+        {
+          "url": "https://craj.jp/party/platform/",
+          "label": "綱領",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "2026-01 に立憲民主党の衆院議員と公明党が合流して結成。参院には会派を持たない。"
+    },
+    {
+      "party_id": "PT03",
+      "name": "立憲民主党",
+      "short_name": "立憲",
+      "aliases": [
+        "立憲民主・無所属",
+        "立民"
+      ],
+      "seats": {
+        "shugiin": 0,
+        "sangiin": 40
+      },
+      "website": "https://cdp-japan.jp/",
+      "color": "#184589",
+      "web_sources": [
+        {
+          "url": "https://cdp-japan.jp/visions/policies2025",
+          "label": "政策集",
+          "follow": true
+        },
+        {
+          "url": "https://cdp-japan.jp/about/basic-policies",
+          "label": "基本政策",
+          "follow": false
+        },
+        {
+          "url": "https://cdp-japan.jp/about/principles",
+          "label": "綱領",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "衆院議員は中道改革連合へ移り、参院議員・地方組織中心に存続。代表は水岡俊一。"
+    },
+    {
+      "party_id": "PT04",
+      "name": "公明党",
+      "short_name": "公明",
+      "aliases": [],
+      "seats": {
+        "shugiin": 0,
+        "sangiin": 21
+      },
+      "website": "https://www.komei.or.jp/",
+      "color": "#F55881",
+      "web_sources": [
+        {
+          "url": "https://www.komei.or.jp/komeipolicy/",
+          "label": "政策・提言",
+          "follow": true
+        },
+        {
+          "url": "https://www.komei.or.jp/about/platform/",
+          "label": "綱領",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "衆院議員は中道改革連合へ移ったが、参院は独立会派として存続。"
+    },
+    {
+      "party_id": "PT05",
+      "name": "日本維新の会",
+      "short_name": "維新",
+      "aliases": [
+        "維新"
+      ],
+      "seats": {
+        "shugiin": 36,
+        "sangiin": 19
+      },
+      "website": "https://o-ishin.jp/",
+      "color": "#6FBA2C",
+      "web_sources": [
+        {
+          "url": "https://o-ishin.jp/policy/",
+          "label": "政策",
+          "follow": true
+        },
+        {
+          "url": "https://o-ishin.jp/about/outline/",
+          "label": "基本方針・綱領",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "自民と連立。"
+    },
+    {
+      "party_id": "PT06",
+      "name": "国民民主党",
+      "short_name": "国民",
+      "aliases": [
+        "国民民主党・新緑風会",
+        "国民"
+      ],
+      "seats": {
+        "shugiin": 28,
+        "sangiin": 25
+      },
+      "website": "https://new-kokumin.jp/",
+      "color": "#F8BC00",
+      "web_sources": [
+        {
+          "url": "https://new-kokumin.jp/policies",
+          "label": "政策",
+          "follow": true
+        },
+        {
+          "url": "https://new-kokumin.jp/policies/specifics",
+          "label": "政策各論",
+          "follow": true
+        },
+        {
+          "url": "https://new-kokumin.jp/about/declaration1",
+          "label": "綱領・結党宣言",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": ""
+    },
+    {
+      "party_id": "PT07",
+      "name": "参政党",
+      "short_name": "参政",
+      "aliases": [],
+      "seats": {
+        "shugiin": 15,
+        "sangiin": 15
+      },
+      "website": "https://sanseito.jp/",
+      "color": "#D85D0F",
+      "web_sources": [
+        {
+          "url": "https://sanseito.jp/political_measures_2026/",
+          "label": "政策カタログ",
+          "follow": true
+        }
+      ],
+      "active": true,
+      "note": ""
+    },
+    {
+      "party_id": "PT08",
+      "name": "日本共産党",
+      "short_name": "共産",
+      "aliases": [
+        "共産党"
+      ],
+      "seats": {
+        "shugiin": 4,
+        "sangiin": 7
+      },
+      "website": "https://www.jcp.or.jp/",
+      "color": "#DB001C",
+      "web_sources": [
+        {
+          "url": "https://www.jcp.or.jp/web_policy/",
+          "label": "政策",
+          "follow": true
+        }
+      ],
+      "active": true,
+      "note": ""
+    },
+    {
+      "party_id": "PT09",
+      "name": "いのちの党",
+      "short_name": "いのち",
+      "aliases": [
+        "れいわ新選組",
+        "れいわ"
+      ],
+      "seats": {
+        "shugiin": 1,
+        "sangiin": 5
+      },
+      "website": "https://inochinoto.jp/",
+      "color": "#E4027E",
+      "web_sources": [
+        {
+          "url": "https://inochinoto.jp/policy/",
+          "label": "政策",
+          "follow": true
+        },
+        {
+          "url": "https://inochinoto.jp/determination/",
+          "label": "綱領・規約",
+          "follow": false
+        },
+        {
+          "url": "https://reiwa-shinsengumi.com/policy/",
+          "label": "政策（旧サイト）",
+          "follow": true
+        },
+        {
+          "url": "https://reiwa-shinsengumi.com/determination/",
+          "label": "決意（綱領・規約／旧サイト）",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "2026-08-06 にれいわ新選組から党名変更。新サイト inochinoto.jp の政策ページは準備中のため、旧サイト reiwa-shinsengumi.com の政策を使う。"
+    },
+    {
+      "party_id": "PT10",
+      "name": "チームみらい",
+      "short_name": "みらい",
+      "aliases": [
+        "チームみらい・無所属の会"
+      ],
+      "seats": {
+        "shugiin": 11,
+        "sangiin": 2
+      },
+      "website": "https://team-mir.ai/",
+      "color": "#66FFCC",
+      "web_sources": [
+        {
+          "url": "https://policy.team-mir.ai/policies",
+          "label": "政策集",
+          "follow": true
+        },
+        {
+          "url": "https://team-mir.ai/election/shugiin-2026",
+          "label": "2026衆院選公約",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "2026-02 の衆院選で初の衆院議席（11）。"
+    },
+    {
+      "party_id": "PT11",
+      "name": "日本保守党",
+      "short_name": "保守",
+      "aliases": [],
+      "seats": {
+        "shugiin": 0,
+        "sangiin": 2
+      },
+      "website": "https://hoshuto.jp/",
+      "color": "#0A82DC",
+      "web_sources": [
+        {
+          "url": "https://hoshuto.jp/policy/",
+          "label": "重点政策項目",
+          "follow": true
+        },
+        {
+          "url": "https://hoshuto.jp/regulation/",
+          "label": "党規約と綱領",
+          "follow": false
+        },
+        {
+          "url": "https://hoshuto.jp/declaration/",
+          "label": "結党宣言",
+          "follow": false
+        }
+      ],
+      "active": true,
+      "note": "衆院では議席を失い、参院のみ。"
+    },
+    {
+      "party_id": "PT12",
+      "name": "社会民主党",
+      "short_name": "社民",
+      "aliases": [
+        "社民党"
+      ],
+      "seats": {
+        "shugiin": 0,
+        "sangiin": 2
+      },
+      "website": "https://sdp.or.jp/",
+      "color": "#01A8EC",
+      "web_sources": [
+        {
+          "url": "https://sdp.or.jp/policies/",
+          "label": "基本政策",
+          "follow": true
+        },
+        {
+          "url": "https://sdp.or.jp/2026manifesto/",
+          "label": "2026公約",
+          "follow": true
+        },
+        {
+          "url": "https://sdp.or.jp/principle/",
+          "label": "理念",
+          "follow": false
+        },
+        {
+          "url": "https://sdp.or.jp/declaration/",
+          "label": "社民党宣言",
+          "follow": false
+        },
+        {
+          "url": "https://sdp.or.jp/2026election/",
+          "label": "衆院選2026",
+          "follow": true
+        }
+      ],
+      "active": true,
+      "note": "公式サイトの政策ページは目次だけで本文がないため、党宣言と衆院選ページを使う。"
+    },
+    {
+      "party_id": "PT13",
+      "name": "減税日本",
+      "short_name": "減税",
+      "aliases": [
+        "減税日本・ゆうこく連合"
+      ],
+      "seats": {
+        "shugiin": 1,
+        "sangiin": 0
+      },
+      "website": "https://genzeinippon.com/",
+      "color": "#18378A",
+      "web_sources": [
+        {
+          "url": "https://genzeinippon.com/seisaku",
+          "label": "政策",
+          "follow": true
+        }
+      ],
+      "active": true,
+      "note": "衆院で会派『減税日本・ゆうこく連合』を構成。"
+    }
+  ]
+}

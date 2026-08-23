@@ -1,35 +1,43 @@
 #!/usr/bin/env node
-// 各議員の公式サイトのトップページから、政策・理念を述べているページのリンクを探す。
+// 公式サイトのトップページから、政策・理念を述べているページのリンクを探す。
 //
-//   node scripts/kokkai/discover-web.mjs
+//   node scripts/kokkai/discover-web.mjs [--target=politicians|parties] [--only=PT01]
 //
-// 結果を見て politicians.json の web_sources を手で確定させるための補助ツール。
-// サイト構造は議員ごとにバラバラなので、自動判定に任せきりにはしない。
+// 結果を見て politicians.json / parties.json の web_sources を手で確定させるための補助ツール。
+// サイト構造は対象ごとにバラバラなので、自動判定に任せきりにはしない。
 
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { parse } from "node-html-parser";
 import { fetchPolite, isAllowed } from "./web-fetch-lib.mjs";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+import { loadMaster, parseTarget } from "./masters.mjs";
 
 // リンク文字列がこれにあたれば、政策・理念を述べたページの候補とみなす
-const POLICY_LINK = /政策|理念|考え|主張|公約|マニフェスト|ビジョン|めざす|目指す|想い|信念|訴え/;
+const POLICY_LINK = /政策|理念|考え|主張|公約|マニフェスト|ビジョン|めざす|目指す|想い|信念|訴え|綱領|基本政策|重点/;
+
+function parseArgs(argv) {
+  const args = { target: "politicians", only: null };
+  for (const a of argv.slice(2)) {
+    if (a.startsWith("--target=")) args.target = parseTarget(a.slice(9));
+    else if (a.startsWith("--only=")) args.only = a.slice(7).split(",").map((s) => s.trim());
+    else throw new Error(`不明な引数: ${a}`);
+  }
+  return args;
+}
 
 async function main() {
-  const master = JSON.parse(await readFile(path.join(ROOT, "scripts/kokkai/politicians.json"), "utf8"));
+  const args = parseArgs(process.argv);
+  const master = await loadMaster(args.target);
 
-  for (const p of master.politicians) {
-    const top = p.website;
+  for (const entry of master.entries) {
+    if (args.only && !args.only.includes(entry.id)) continue;
+    const top = entry.website;
     if (!top) {
-      console.log(`${p.speaker_id} ${p.name}: website 未設定`);
+      console.log(`${entry.id} ${entry.name}: website 未設定`);
       continue;
     }
 
     const allowed = await isAllowed(top);
     if (!allowed.ok) {
-      console.log(`${p.speaker_id} ${p.name}: [robots.txt により取得しません] ${allowed.reason}`);
+      console.log(`${entry.id} ${entry.name}: [robots.txt により取得しません] ${allowed.reason}`);
       continue;
     }
 
@@ -37,7 +45,7 @@ async function main() {
     try {
       html = await fetchPolite(top);
     } catch (e) {
-      console.log(`${p.speaker_id} ${p.name}: 取得失敗 ${e.message}`);
+      console.log(`${entry.id} ${entry.name}: 取得失敗 ${e.message}`);
       continue;
     }
 
@@ -58,8 +66,8 @@ async function main() {
       if (!found.has(u.href)) found.set(u.href, label);
     }
 
-    console.log(`${p.speaker_id} ${p.name}  候補${found.size}件`);
-    for (const [u, label] of [...found].slice(0, 8)) console.log(`    ${label}  ->  ${u}`);
+    console.log(`${entry.id} ${entry.name}  候補${found.size}件`);
+    for (const [u, label] of [...found].slice(0, 10)) console.log(`    ${label}  ->  ${u}`);
   }
 }
 

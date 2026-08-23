@@ -19,7 +19,7 @@ D1 と KV に何が入っているか、`share` / `score` / `distinctiveness` �
 |---|---|---|
 | 入力 | **直前に答えた1記事の回答**（D1 `answer_selections`） | 累積のユーザープロファイル（KV `profile:user:*`） |
 | 逆引きの単位 | **frame × target**（`role` では絞らない） | セル（frame × target × role） |
-| 読む KV | `cellidx:*` → 論点ごとに選んだ3人の `profile:evidence:*` | 全議員の `profile:*` → 上位3人の `profile:evidence:*` |
+| 読む KV | `cellidx:*` → 論点ごとに選んだ3人の `profile:evidence:*` | 全議員の `profile:*` のみ（**evidence は読みません**） |
 | 出すもの | 論点ごとに「議員がその観点をどう扱ったか」＋発言原文 | マッチ度（%）＋ reasons / differences |
 | マッチ度 | **出しません** | 出します |
 
@@ -95,8 +95,9 @@ loyalty_community × 家族        5人全員 score +1.000
 ① ユーザープロファイル【3】       ← ✅ 実装済み。KV から読むだけ
   ↓ ② 全議員の profile:{id} と突き合わせ（evidence は読まない。合計150KB程度）
   ↓ ③ match_score + reasons + differences を組み立て
-  ↓ ④ 上位3人だけ profile:evidence:{id} を読んで根拠を添える
 ```
+
+**④ evidence は読みません**（2026-08-23 の決定。理由は後述の「④」）。
 
 **LLM は一切使いません。** 理由文もテンプレートで作ります（後述）。
 
@@ -279,8 +280,11 @@ PRIOR 0.5   Aさん               稲田朋美 47 斉藤鉄夫 42 / Bさん     
 たまたま出会っていない人は違います。マッチ計算では②を③より重く扱います。
 
 ```js
-const SILENT_WEIGHT   = 0.3;   // ③ 両者とも持たない（たまたま一致）
-const DECLINED_WEIGHT = 0.5;   // ② ユーザーが明示的に降りたセルを、議員も語っていない
+const SILENT_WEIGHT   = 0.05;  // ③ 両者とも持たない（たまたま一致）
+const DECLINED_WEIGHT = 0.10;  // ② ユーザーが明示的に降りたセルを、議員も語っていない
+const ABSENCE_WEIGHT  = 0.3;   // ① ユーザーが優先順位を下げたセルを、議員が語っていない（後述）
+const OPPOSITE_ROLE_WEIGHT = 1;  // ★逆の role で強く語っている＝思想の対立。減点する
+const STRONG_SCORE = 0.5;        // 「強く語った」の閾値。ユーザー側・議員側で同じ値
 ```
 
 ②で「議員は語っているのにユーザーが降りた」場合は**加点しません**。分母 `den` はユーザーの
@@ -360,8 +364,16 @@ const key = (c) => `${c.frame}|${c.target}|${c.role}`;   // ★role を含む3�
 
 const MIN_N = 3;              // 議員側のセルの下限
 const MIN_MATCHED = 2;        // これ未満なら reliable: false
-const SILENT_WEIGHT = 0.3;    // ③ 両者とも持たない（たまたま一致）
-const DECLINED_WEIGHT = 0.5;  // ② ユーザーが明示的に降りたセルを、議員も語っていない
+const SILENT_WEIGHT = 0.05;   // ③ 両者とも持たない（たまたま一致）
+const DECLINED_WEIGHT = 0.10; // ② ユーザーが明示的に降りたセルを、議員も語っていない
+const EMPHASIS_SCALE = 2;     // 突出度を「一致の強さ」に直す倍率（後述）
+const ABSENCE_WEIGHT = 0.3;   // ① ユーザーが下げたセルを、議員が語っていない
+
+// 沈黙をどれだけ信用するか。公約は網羅的なので満額、答弁は観測量に応じて割り引く
+const ABSENCE_FULL_FRAMES = 1200;
+const absenceConfidence = pol.source === "manifesto" || pol.source === "mixed"
+  ? 1
+  : Math.min(1, pol.cells.reduce((t, c) => t + c.n, 0) / ABSENCE_FULL_FRAMES);
 
 function match(user, pol) {
   const pmap = new Map(pol.cells.map((c) => [key(c), c]));
@@ -373,19 +385,28 @@ function match(user, pol) {
     den += u.share;
 
     const p = pmap.get(key(u));
-    if (!p || p.n < MIN_N) continue;
+    if (!p) {
+      // ★語っていないセルは score -1（優先順位を下げた）とみなして突き合わせる
+      num += u.share * ABSENCE_WEIGHT * absenceConfidence * (1 - Math.abs(u.score - (-1)) / 2);
+      continue;
+    }
+    if (p.n < MIN_N) continue;
 
-    // 両者が重視するセルほど効く。ありふれたセルは distinctiveness で割り引く
-    const overlap = Math.sqrt(u.share * p.share) * Math.log(1 + p.distinctiveness);
+    // ★重みはユーザーの share、強さは突出度。相手の share は直接掛けない（後述）
+    const overlap = u.share * Math.min(1, Math.log(1 + p.distinctiveness) * EMPHASIS_SCALE);
     const agree = 1 - Math.abs(u.score - p.score) / 2;   // 0〜1
 
-    num += overlap * agree;
+    num += Math.min(overlap * agree, u.share);   // 1セルは自分の share を超えて稼がない
     matched++;
     contrib.push({ ...u, w: overlap, agree, c: overlap * agree, polShare: p.share, polScore: p.score });
   }
 
-  // 「両者とも語らなかったセル」も一致として少しだけ数える
-  num += silentAgreement(user, pol) * SILENT_WEIGHT;
+  // 「両者とも語らなかったセル」も一致として少しだけ数える。
+  // ★ただし**偶然の一致を差し引く**（薄いプロファイルが自動的に稼ぐのを防ぐ）
+  const coverage = [...universe].filter((k) => pmap.has(k)).length / universe.size;
+  const kappa = (obs) => Math.max(0, Math.min(1, (obs - (1 - coverage)) / coverage));
+  num += kappa(silentAgreement(user, pol)) * SILENT_WEIGHT;
+  den += SILENT_WEIGHT;   // ★重み付き平均にする。分母に入れるのでスコアは 0〜100 に収まる
 
   if (matched < MIN_MATCHED) return { reliable: false };
 
@@ -416,15 +437,27 @@ function match(user, pol) {
 | `den` | **ユーザーが重視するセルの総量**。分母 | ループで加算 |
 | `matched` | 共通セルの数。信頼度の判定に使う | ループで加算 |
 
-#### `overlap` —— 両者がともに重視しているか
+#### `overlap` —— ユーザーの重み × 相手の突出度
 
 ```js
-const overlap = Math.sqrt(u.share * p.share) * Math.log(1 + p.distinctiveness);
+const overlap = u.share * Math.log(1 + p.distinctiveness);
 ```
 
-**相乗平均（`sqrt(a × b)`）を使う理由**は、**どちらか一方だけが重視しているセルを効かせない**
-ためです。単純平均 `(a + b) / 2` だと、ユーザーが触れていないセルでも議員側の share が
-大きければ点が入り、数字が膨らみます。相乗平均なら片方が0に近ければ全体も0に近づきます。
+**★相手の `share` を直接掛けてはいけません。** `share` は「その人の全セル中の比率」なので、
+**セルの少ない相手ほど1セルあたりが大きく出ます**。実測で 29セルの安野貴博と 83セルの神谷宗幣
+では、同じ言及量でも share が3倍近く違います。
+
+`distinctiveness`（＝全議員平均に対する倍率）はセル数の影響を受けないので、これで測ります。
+自己再現テスト（後述）で決定的な差が出ました。
+
+| 式 | 1位的中 | 上位3 | 平均順位 | セル数との相関 |
+|---|---:|---:|---:|---:|
+| `sqrt(u.share × p.share) × log(1+d)`（旧） | 6/15 | 7/15 | 4.80 | **+0.61** |
+| コサイン型 `u.share × p.share / ‖p‖` | 5/15 | 9/15 | 5.07 | +0.65 |
+| **`u.share × log(1+d)`（採用）** | **8/15** | **13/15** | **2.53** | **−0.04** |
+
+「セル数との相関」は、**そのプロファイルのセル数と、誰の回答に対しても得られる平均順位**の
+相関です。**0 に近いほど「データ量ではなく思想で並んでいる」**ことを意味します。
 
 ```
 u.share=0.20, p.share=0.20  → sqrt(0.04) = 0.200   両者とも重視 → 大きい
@@ -508,6 +541,196 @@ sovereignty  全議員が  2〜26%   （10倍以上の開き）→ 一致は強�
 （数値は抽出の進行につれて変わります。傾向として
 「`care_harm` は誰でも語る／`sovereignty` は議員で大きく割れる」を押さえてください）
 
+### ★式を変えたら必ず自己再現テストで測る
+
+`scripts/` には入れていませんが、検証は次の手順で再現できます。**議員・政党本人の
+プロファイルから「本人が設問カタログに回答したら」を合成し、本人が1位に返るかを測る**
+ものです（ユーザープロファイルは実際の `aggregateUserProfile` を通すので、
+平滑化も override 補正も本番と同じ）。
+
+```
+① KV から profile:{id} / profile:party:{名} / cellidx:* を取る
+② 各プロファイルの cells を設問カタログに突き合わせ、
+   score > 0.2 なら uphold、< -0.2 なら override、無ければ interest 0（関心なし）で回答を作る
+③ aggregateUserProfile → calculateProfileMatch で全員と照合し、本人の順位を見る
+```
+
+見るべき指標は4つです。
+
+| 指標 | 意味 | 目標 |
+|---|---|---|
+| 1位的中 | 本人が1位に返った割合 | 高いほどよい |
+| 平均順位 | 偶然なら (n+1)/2 | 小さいほどよい |
+| **セル数との相関** | プロファイルのセル数と「誰の回答に対しても得る平均順位」の相関 | **0 に近いほどよい**（データ量ではなく思想で並んでいる） |
+| 100%飽和 | クリップされた件数 | 0 |
+
+実測の推移（議員15人・政党8党）。
+
+```
+                          1位的中   上位3    平均順位   セル数との相関   100%飽和
+着手前                     6/15    8/15     4.47      +0.83       1.3件/回
+偶然一致の差し引き            6/15    7/15     4.80      +0.61       1.3件/回
+overlap を突出度ベースに      8/15   13/15     2.53      -0.04       0件
+重み付き平均（分母に重みを追加）   〃      〃        〃          〃         0件
+設問カタログを15問→24問に    11/15   14/15     1.67      -0.04       0件
+
+政党                       4/8     7/8      1.75（偶然 4.5）
+```
+
+**設問カタログの寄与が最も大きい**（8/15 → 11/15）。式をいくら詰めても、
+聞いていない論点は識別できません。神谷宗幣（主軸が `sovereignty`）は
+13位 → **1位**になりました。
+
+#### ★スコアの水準を合わせる（`EMPHASIS_SCALE` と重みの縮小）
+
+本人が設問に回答したケースの平均が **53.4%** しかありませんでした。分解すると原因は2つで、
+どちらも**取れない点を分母に置いていた**ことによります。
+
+```
+平均 agree            0.955   ← 向きは正しく一致している
+平均 log(1+突出度)      0.700   ← 完全一致でもセルの share の7割しか取れない
+κ沈黙                 0.19    ← 重み 0.3 を分母に入れても 0.06 しか返ってこない
+κ関心なし              0.53    ← 同じく重み 0.5
+```
+
+```js
+const overlap = u.share * Math.min(1, Math.log(1 + p.distinctiveness) * EMPHASIS_SCALE);
+SILENT_WEIGHT   0.3 → 0.05
+DECLINED_WEIGHT 0.5 → 0.10
+```
+
+`EMPHASIS_SCALE = 2` で、突出度が平均並み（1.0倍）のセルが満点に届きます。
+平均より下のセルだけが割り引かれます。本人平均 **53.4% → 84%**、
+1位的中 11/15 → 12/15、上位3 14/15 → **15/15**。
+
+⚠ **上げるほど「そのセルを持っているか」で決まる**ので、発言量の多い相手が有利になります。
+実測でセル数と平均順位の相関は 1.0倍で −0.04、1.44倍で −0.30、**2.0倍で −0.56**。
+新人議員の不利を抑えたいなら 1.44 に落とす（本人平均71%）という選択もあります。
+
+#### ⚠ 「思想が対極の相手ほど低く出る」は、式では達成できない
+
+本人80%以上・対極30%以下を狙って4つの測り方を試しましたが、**どれも本人と対極の差が
+8〜10ptしか開きません**。入力に差が無いからです。
+
+```
+神谷宗幣 vs 天畠大輔   両者が答えた19問のうち、向きが違うのは 0問
+高市早苗 vs 田村智子   両者が答えた19問のうち、向きが違うのは 0問
+議員の回答内訳: uphold 79.2% / override 1.4% / 未観測 19.4%
+```
+
+いまの設問は「子どもを守るべきか」のように**全員が uphold する論点**ばかりです。
+向きが割れるセル（`authority_order × 個人` は13人中8人が override など）を設問にすると、
+**対極平均 72% → 17%、1位的中 14/15** まで変わります。式ではなく設問の問題です。
+
+#### ★「両者とも語らなかった」は偶然の一致を差し引く
+
+```js
+const coverage = [...universe].filter((k) => pmap.has(k)).length / universe.size;
+const kappa = (obs) => Math.max(0, Math.min(1, (obs - (1 - coverage)) / coverage));
+num += kappa(silentAgreement) * SILENT_WEIGHT;
+num += kappa(declinedAgreement) * DECLINED_WEIGHT;
+```
+
+素の一致率をそのまま使うと、**セルの少ない相手が自動的に高く出ます**。ユーザーが何を選ぼうと
+大半のセルを持たないからです。実測では**セル数と平均順位の相関が +0.83**で、
+安野貴博（29セル）が誰の回答に対しても平均2.9位、神谷宗幣（83セル）が14.4位という、
+思想ではなくデータ量を測る状態になっていました。
+
+偶然の一致率は「相手が universe をどれだけ覆っていないか」＝ `1 - coverage`。
+Cohen のκと同じ形で差し引きます。
+
+#### ★スコアは重み付き平均にする（100%張り付きの解消）
+
+```js
+den = Σ u.share + SILENT_WEIGHT + DECLINED_WEIGHT     // 加点の上限を分母に入れる
+num = Σ min(overlap × agree, u.share) + κ(...) × W    // 1セルは自分の share が上限
+```
+
+以前は分子が分母を超えることが多く、**1回の照合あたり平均1.3人が100%に張り付いて**
+順位が付きませんでした（「小川淳也の回答 → 高市100.0 / 河野100.0 / 小川100.0」）。
+上限を分母に入れ、セルごとの寄与を頭打ちにすると、構造上 0〜100 に収まります。
+実測の最高スコアは 74.8 で、飽和は0件になりました。
+
+`SILENT_WEIGHT` / `DECLINED_WEIGHT` は**該当するセルがあるときだけ分母に足します**。
+「関心がない」と答えたことが一度もないユーザーの分母を、無関係に膨らませないためです。
+
+#### ★逆の `role` で強く語っている相手は減点する（`OPPOSITE_ROLE_WEIGHT = 1`）
+
+同じ `frame × target` を、ユーザーとは**逆の role** で強く語っている相手を減点します。
+`beneficiary`（守る対象）と `threat`（脅威）は思想の対立だからです。
+
+```js
+// ユーザー: care_harm × 外国人・移民 × beneficiary（守るべき）
+// 議員　　: care_harm × 外国人・移民 × threat      （治安上の懸念）
+const opposite = pmap.get(`${u.frame}|${u.target}|${u.role === "beneficiary" ? "threat" : "beneficiary"}`);
+if (u.score > STRONG_SCORE && opposite && opposite.score > STRONG_SCORE) {
+  num -= Math.min(u.share * Math.log(1 + opposite.distinctiveness), u.share) * OPPOSITE_ROLE_WEIGHT;
+}
+```
+
+重みは一致と同じ 1.0。「守る対象として語った量」と「脅威として語った量」が釣り合えば
+相殺されます。**これは観測された発言なので `differences` に出して構いません**
+（語っていないセルとの違いに注意）。
+
+##### 閾値は両側とも `STRONG_SCORE = 0.5`
+
+**片側だけ基準を変えないこと**（`override` の重みや `share` の平滑化と同じ理由）。
+
+議員・政党の score は実測1,593セルで **25%点 +0.82・中央値 +1.00**、
+0.5 を超えるものが 81.6%。0.5 未満に残るのは override を含む「向きの読めない」帯です。
+
+**閾値を外すと、脅威の枠組みを持ち出したうえで退けた発言まで減点に数えます。**
+実測では猪瀬直樹の `loyalty_community × 地方 × threat` が score −1.00 で、
+これを減点すると 1.4pt ぶん不当に下がります。
+
+ユーザー側は設問1つにつき1セルなので score は ±1 になりますが、
+同じセルを複数記事で問うようになれば中間値が出ます。そのときも同じ 0.5 で切ります。
+
+##### 発生頻度と効き方
+
+同じ `frame × target` の両ロールを持つ相手は **7.7%**（1,479組中114組）と多くありませんが、
+効くときは大きく効きます。
+
+```
+神谷宗幣  sovereignty × 外国人・移民 × threat  share 0.030 n=67  → 7.3pt の減点
+田村智子  fairness    × 大企業・産業 × threat  share 0.040 n=84  → 8.3pt の減点
+```
+
+実測のユーザーでは 斉藤鉄夫 45.8 → 43.6、高市早苗 43.3 → 41.3、
+自由民主党 31.5 → 30.2 と動き、順位も入れ替わりました。
+
+#### ★語っていないセルは「優先順位を下げた」とみなす（`ABSENCE_WEIGHT = 0.3`）
+
+議員・政党が**一度も語っていない**セルを、`score = -1` の仮想セルとして突き合わせます。
+ユーザーが優先順位を下げたセル（`override`）なら一致、重んじたセルなら寄与ゼロです。
+
+これが無いと、**ユーザーの `override` 回答がどの相手にも効きません**。議員側の score は
+9割方 +1 に張り付く（override が稀）ので、相手が語っていれば必ず `agree = 0`、
+語っていなければ寄与ゼロ、のどちらかにしかならないためです。実測のユーザーで
+11セル中4セルがこれに当たり、分母の36%が全相手に対して死んでいました。
+
+**公約はとくにこの読み方が効きます。** 公約は網羅的に掲げるものなので、
+載せていない＝明示的に優先順位を下げた、と読めるからです。
+
+##### 観測量で割り引く（`ABSENCE_FULL_FRAMES = 1200`）
+
+補正しないと、**観測の少ない相手ほど有利**になります。語っていないセルが多いほど
+加点を集めるためです。実測では安野貴博（Σn=306）が4位→2位に飛び、
+斉藤鉄夫（Σn=1427）が3位→5位に落ちました。
+
+```
+absenceConfidence = source が manifesto / mixed        → 1（公約は網羅的なので満額）
+                    それ以外（答弁データ）             → min(1, Σn / 1200)
+```
+
+`n_segments_valued` ではなくセルの `Σn` を使います。**政党プロファイルの
+`n_segments_valued` は所属議員から集計した党では 0 になる**ためで、
+`Σn` なら議員・政党のどちらでも同じ意味を持ちます。1200 は議員の実測
+（306〜2616、中央値1364）の中央値付近です。
+
+**`reasons` / `differences` には出しません。** 観測された発言ではないので、
+「この議員は◯◯を優先していない」と画面で断定すると「推論でタグを付けない」に触れます。
+
 #### 「両者とも語らなかった」も少しだけ数える
 
 語らなかったこと自体が思想の情報です。ただし**満額にしてはいけません**。
@@ -555,7 +778,17 @@ cell.score < -0.2 ? `${FRAME_JA[cell.frame]}よりも他の価値を優先する
 
 ---
 
-## ④ evidence を添える
+## ④ evidence は読みません（2026-08-23 決定）
+
+**政治コンパス画面は発言の原文を出さないので、C は `profile:evidence:*` を一切読みません。**
+氏名・所属・マッチ度・reasons / differences だけで画面が成立しており、読んでも捨てるだけでした。
+やめたことで、並べる議員を3人から**7人**に増やしても KV の読み込み量は変わりません。
+
+原文が要るのは B（`GET /api/perspectives/:articleId`）です。C に「根拠を見る」UI を
+足すときは、この節を復活させるのではなく**選ばれた議員1人分だけを読む別経路**にしてください
+（1件1MB前後あるので、7人分をまとめて展開すると Worker のメモリに響きます）。
+
+以下は B と、将来 C で原文を出すときのための記述です。
 
 **上位3人だけ** `profile:evidence:{speaker_id}` を読みます。1件1MB前後あるので、
 全議員分を読むと十数MBになります。
@@ -612,15 +845,14 @@ full.slice(s, t)                        // → 根拠にした箇所
       ],
       "differences": [
         { "text": "共同体・伝統の言及度はこの議員のほうが低い", "frame": "loyalty_community" }
-      ],
-      "evidence": [
-        { "date": "2024-03-12", "quote": "……原文……",
-          "url": "https://kokkai.ndl.go.jp/...", "frame": "liberty_autonomy" }
       ]
     }
   ],
   "party_matches": [
-    { "party": "自由民主党", "match_score": 62, "n_politicians": 4 }
+    { "party_id": "PT01", "party": "自由民主党", "short_name": "自民",
+      "website": "https://www.jimin.jp/", "seats": { "shugiin": 316, "sangiin": 101 },
+      "source": "mixed", "match_score": 62, "matched_cells": 5, "n_politicians": 4,
+      "reasons": [], "differences": [] }
   ],
   "disclaimer": "これは参考情報であり、投票の推奨ではありません。"
 }
@@ -633,9 +865,14 @@ full.slice(s, t)                        // → 根拠にした箇所
 
 このときは「もう少し記事に意見を書くと精度が上がります」と表示します。
 
-`party_matches` は `profile:party:{党名}` を読んで同じ計算をします。
-**対象議員が1人の党も含めます**（プロトタイプ方針）。
-大政党ほど平均で中庸に寄る点は承知の上です。
+`party_matches` は `profile:party:{党名}` を読んで同じ計算をします。対象は
+**国会に議席を持つ全政党**で、一覧は `scripts/kokkai/parties.json` が正です。
+返すのは議員と同じく**上位7件**まで（`MAX_MATCHES`）。プロファイルが無い党と
+`reliable: false` の党は、その前に落ちます。
+議員マスタから所属党を数え上げないでください（プロファイルを作った15人がいない党が落ちます）。
+
+政党プロファイルは**公約を主・所属議員の発言を従**にして作ってあります（`source` を参照）。
+`profile:party:{党名}` が KV に無い党は、まだ公約を抽出していないだけなので黙って飛ばします。
 
 ---
 
@@ -743,10 +980,14 @@ if (!user || user.cells.length === 0 || user.n_answers < 5) return { reliable: f
 
 ### `party_matches` は議員のマッチ度の平均ではない
 
-政党プロファイル（`profile:party:{党名}`）は**所属議員の cells を n で加重平均したもの**で、
+政党プロファイル（`profile:party:{党名}`）は**各党の公約と所属議員の cells を混ぜたもの**で、
 そこに対してユーザーと同じマッチ計算をします。
 「所属議員の match_score を平均する」のとは別の値になります。後者にしないでください
 （1人だけ極端に高い党が過大評価されます）。
+
+政党側の `distinctiveness` は**全政党の中での珍しさ**で、議員側（議員15人の中での珍しさ）
+とは母集団が違います。**議員のマッチ度と政党のマッチ度を並べて優劣を語らないこと。**
+画面でもタブを分けています。
 
 ### 議員の並び順を score でソートしない
 
@@ -1022,9 +1263,9 @@ const pShare = pmap.get(k).share / mass;               // ← 再正規化
 | 段階 | 状態 |
 |---|---|
 | ① ユーザープロファイル | ✅ 実装済み。保存のたびに KV `USER_PROFILES` が更新される |
-| ② マッチ計算 | ❌ 未着手。`GET /api/matches/:articleId` はスタブを返している |
-| ③ reasons / differences | ❌ 未着手 |
-| ④ evidence | ❌ 未着手 |
+| ② マッチ計算 | ✅ 実装済み。`GET /api/matches/profile`（議員・政党とも上位7件） |
+| ③ reasons / differences | ✅ 実装済み |
+| ④ evidence | — この画面では出さないため**実装しません**（上記④） |
 
 `api/src/routes/matches.ts` が `api/src/data/politicians.ts` の固定値を返している
 状態なので、そこを置き換える形になります。

@@ -1,19 +1,26 @@
 #!/usr/bin/env node
 // 【1】utterances → 【2】議員プロファイル / 政党プロファイル / セル逆引きインデックス
 //
-//   node scripts/kokkai/build-profiles.mjs [--in=data/utterances.jsonl] [--min-n=3]
+//   node scripts/kokkai/build-profiles.mjs [--in=data/utterances.jsonl]
+//                                          [--party-in=data/utterances-party.jsonl]
+//                                          [--min-n=3] [--manifesto-weight=0.7]
 //
 // 【1】から集計して作る派生データなので、**何度でも作り直せる**。
 // 集計式が変われば、LLM を再実行せずここだけ回せばよい。
 //
 // 出力（KV に入れる想定。キーはファイル名と同じ）
-//   data/profiles/profile_{speaker_id}.json      profile:P00001
-//   data/profiles/party/profile_party_{名}.json  profile:party:自由民主党
-//   data/profiles/cellidx/{連番}.json            cellidx:frame|target|role
+//   data/profiles/profile_{speaker_id}.json               profile:P00001
+//   data/profiles/party/profile_party_{名}.json           profile:party:自由民主党
+//   data/profiles/party/evidence/evidence_party_{名}.json profile:party:evidence:自由民主党
+//   data/profiles/cellidx/{連番}.json                     cellidx:frame|target|role
+//
+// ★政党プロファイルは**公約を主、所属議員の発言を従**にして混ぜる（--manifesto-weight）。
+//   議員の平均だけで作ると、党としての立場より議員個人のばらつきが強く出てしまうため。
+//   また、プロファイルを作った議員がいない党（社民・保守など）は公約だけで作る。
+//   これで「国会に議席を持つ全政党」を同じ土俵に載せられる。
 
-import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm, access } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   DISTINCTIVENESS_PRIOR,
   SHARE_PRIOR,
@@ -22,13 +29,32 @@ import {
   overrideWeight,
   smoothedShare,
 } from "../../shared/src/scoring.ts";
-import { FRAMES, FRAME_JA_PLAIN as FRAME_JA } from "./llm.mjs";
+import { FRAMES } from "./llm.mjs";
+import { FRAME_LENS } from "../../shared/src/vocabulary.ts";
+import { ROOT, loadMaster } from "./masters.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OUT_DIR = path.join(ROOT, "data/profiles");
 
-const PROFILE_VERSION = "profile-v1.1";
+const PROFILE_VERSION = "profile-v1.2";
 const MAX_EVIDENCE = 3;
+
+// 政党プロファイルで公約に置く重み。残りが所属議員の発言。
+//
+// 議員の平均だけで党の傾向を作ると、その党から選んだ議員が誰かでプロファイルが動く
+// （自民は高市氏と河野氏で cells がかなり違う）。党として公表している公約のほうが
+// 「党の立場」に近い。ただし公約は書き言葉で**網羅的に書くもの**なので、重みを上げると
+// どの党も同じ論点に同じように触れることになり、**党どうしが似てしまう**。
+//
+// 実測（13党の cells を share ベクトルにしてコサイン類似度を取ったもの）:
+//
+//   重み  政党どうしの類似度      マッチ度の1位〜最下位の幅
+//   0     平均0.585 最小0.049    31.7pt
+//   0.3   平均0.625 最小0.106    29.1pt   ← 採用
+//   0.7   平均0.649 最小0.183    25.7pt   自民と維新が0.1pt差まで詰まり、順位が意味を失う
+//
+// 0.3 は「議員の選び方に左右されすぎない」と「党の違いが残る」の折り合い。
+// 所属議員のプロファイルが無い党（立憲・公明・保守・社民・減税）は公約のみで作る。
+const MANIFESTO_WEIGHT = 0.3;
 
 // override の重み。
 //
@@ -58,14 +84,35 @@ export function calcOverrideRate(utterances) {
 export { overrideWeight };
 
 function parseArgs(argv) {
-  const args = { in: "data/utterances.jsonl", minN: 3, quiet: false };
+  const args = {
+    in: "data/utterances.jsonl",
+    partyIn: "data/utterances-party.jsonl",
+    minN: 3,
+    manifestoWeight: MANIFESTO_WEIGHT,
+    quiet: false,
+  };
   for (const a of argv.slice(2)) {
     if (a === "--quiet") args.quiet = true;
     else if (a.startsWith("--in=")) args.in = a.slice(5);
+    else if (a.startsWith("--party-in=")) args.partyIn = a.slice(11);
     else if (a.startsWith("--min-n=")) args.minN = Number(a.slice(8));
+    else if (a.startsWith("--manifesto-weight=")) args.manifestoWeight = Number(a.slice(19));
     else throw new Error(`不明な引数: ${a}`);
   }
+  if (!(args.manifestoWeight >= 0 && args.manifestoWeight <= 1)) {
+    throw new Error(`--manifesto-weight は 0〜1 です: ${args.manifestoWeight}`);
+  }
   return args;
+}
+
+async function readJsonlIfExists(relPath) {
+  const file = path.join(ROOT, relPath);
+  try {
+    await access(file);
+  } catch {
+    return null;
+  }
+  return (await readFile(file, "utf8")).split("\n").filter(Boolean).map((l) => JSON.parse(l));
 }
 
 const cellKey = (c) => `${c.frame}|${c.target}|${c.role}`;
@@ -117,6 +164,12 @@ function pickEvidence(items) {
     });
 }
 
+/**
+ * 1人分（または1党分）のプロファイルを作る。
+ *
+ * 政党の公約もここを通す。入力が「誰の発言か」で分かれているだけで、
+ * 集計のしかたは同じでよいため（master は masters.mjs の entries 形式）。
+ */
 function buildPolitician(master, utterances, minN) {
   const valued = utterances.filter((u) => !u.no_value_content);
   const overrideRate = calcOverrideRate(valued);
@@ -212,7 +265,7 @@ function buildPolitician(master, utterances, minN) {
 
   return {
     profile: {
-      speaker_id: master.speaker_id,
+      speaker_id: master.id,
       politician_name: master.name,
       party: master.party,
       house: master.house,
@@ -229,7 +282,7 @@ function buildPolitician(master, utterances, minN) {
       summary: null, // テンプレートで生成（LLM は使わない）
     },
     evidence: {
-      speaker_id: master.speaker_id,
+      speaker_id: master.id,
       politician_name: master.name,
       computed_at: new Date().toISOString(),
       profile_version: PROFILE_VERSION,
@@ -296,32 +349,59 @@ function attachDistinctiveness(profiles) {
 /**
  * プロファイルの要約文。**LLM は使わない**（§6「LLMに政治家の主張を記憶から語らせる」の禁止）。
  *
- * share の上位を並べると、誰でも語るフレーム（care_harm / efficiency_utility /
- * procedure_rule_of_law）ばかりになり、全議員が似た要約になってしまう。
- * その人らしさを出すため **distinctiveness（全議員平均比）で並べる**。
- * ただし突出度だけだと n の小さいセルを拾うので、share が一定以上のものに限る。
+ * ★フレーム単独ではなく `frame × target × role` のセルで書く。
+ *   「効率と実利を重んじる」だけだと、**誰の利益として語ったか**が落ちる。
+ *   `efficiency_utility × 大企業・産業` と `× 障害者・マイノリティ` は別の思想なので、
+ *   フレーム名だけの要約では全議員が似た文面になってしまう（docs/design-constraints.md
+ *   「フレーム単独で議員の傾向を持つ」の禁止と同じ理由）。
+ *
+ * 文型は画面の「あなたの考え方の傾向」（frontend/app/profile-trends.tsx）と揃える。
+ * 物差しの言い回しは `shared/src/vocabulary.ts` の `FRAME_LENS` が正。
+ *
+ *   beneficiary … 「{target}にとって{lens}」
+ *   threat      … 「{target}が{lens}」
+ *
+ * share の上位を並べると誰でも語るセルばかりになるので、**distinctiveness（全議員平均比）**
+ * で並べる。ただし突出度だけだと n の小さいセルを拾うため、n と share に下限を置く。
  */
+const SUMMARY_MIN_N = 3;
+const SUMMARY_MIN_SHARE = 0.02;
+const SUMMARY_CELLS = 3;
+
 function makeSummary(profile) {
-  const candidates = Object.entries(profile.frames).filter(([, v]) => v.n > 0 && v.share >= 0.03);
+  const candidates = (profile.cells ?? [])
+    .filter((c) => c.n >= SUMMARY_MIN_N && c.share >= SUMMARY_MIN_SHARE);
   if (candidates.length === 0) return "データが少ないため、傾向を示せません。";
 
-  const top = candidates.sort((a, b) => b[1].distinctiveness - a[1].distinctiveness).slice(0, 3);
+  const top = [...candidates]
+    .sort((a, b) => (b.distinctiveness ?? 0) - (a.distinctiveness ?? 0))
+    .slice(0, SUMMARY_CELLS);
 
-  const parts = top.map(([f, v]) => {
-    const label = FRAME_JA[f] ?? f;
-    if (v.score < -0.2) return `${label}よりも他の価値を優先する`;
-    // 平均から離れているものは「特に」を付けて、横並びの印象を避ける
-    return v.distinctiveness >= 1.5 ? `特に${label}を重んじる` : `${label}を重んじる`;
-  });
-  return `${parts.join("、")}傾向。`;
+  // 「重視する」ものと「他を優先する」ものは文型が違うので、向きで分けてから並べる
+  // かぎ括弧で1つずつ括ると鉤が並んで読みにくいので、中黒でつなぐ
+  const phrase = (c) => {
+    const { lens } = FRAME_LENS[c.frame][c.role];
+    return c.role === "beneficiary" ? `${c.target}にとって${lens}` : `${c.target}が${lens}`;
+  };
+  const upheld = top.filter((c) => c.score >= -0.2).map(phrase);
+  const overridden = top.filter((c) => c.score < -0.2).map(phrase);
+
+  const parts = [
+    ...(upheld.length > 0 ? [`${upheld.join("・")}を重視`] : []),
+    ...(overridden.length > 0 ? [`${overridden.join("・")}よりも、ほかの事情を優先`] : []),
+  ];
+  return `${parts.join("、")}する傾向。`;
 }
 
 async function main() {
   const args = parseArgs(process.argv);
-  const master = JSON.parse(await readFile(path.join(ROOT, "scripts/kokkai/politicians.json"), "utf8"));
+  const master = await loadMaster("politicians");
+  const partyMaster = await loadMaster("parties");
 
   const utterances = (await readFile(path.join(ROOT, args.in), "utf8"))
     .split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  // 公約の抽出結果。まだ抽出していなければ null（従来どおり議員だけで政党を作る）。
+  const partyUtterances = await readJsonlIfExists(args.partyIn);
 
   const byPolitician = new Map();
   for (const u of utterances) {
@@ -330,14 +410,14 @@ async function main() {
   }
 
   await rm(OUT_DIR, { recursive: true, force: true });
-  await mkdir(path.join(OUT_DIR, "party"), { recursive: true });
+  await mkdir(path.join(OUT_DIR, "party/evidence"), { recursive: true });
   await mkdir(path.join(OUT_DIR, "evidence"), { recursive: true });
   await mkdir(path.join(OUT_DIR, "cellidx"), { recursive: true });
 
   const profiles = [];
-  for (const p of master.politicians) {
-    if (p.active === false) continue; // 現職でない議員はマッチ候補から外す（§10）
-    const us = byPolitician.get(p.speaker_id) ?? [];
+  for (const p of master.entries) {
+    if (!p.active) continue; // 現職でない議員はマッチ候補から外す（§10）
+    const us = byPolitician.get(p.id) ?? [];
     if (us.length === 0) continue;
 
     const { profile, evidence } = buildPolitician(p, us, args.minN);
@@ -346,8 +426,8 @@ async function main() {
     // summary は distinctiveness を使うので、attachDistinctiveness の後で入れる
     profiles.push(profile);
 
-    await writeFile(path.join(OUT_DIR, `profile_${p.speaker_id}.json`), JSON.stringify(profile, null, 2) + "\n", "utf8");
-    await writeFile(path.join(OUT_DIR, `evidence/evidence_${p.speaker_id}.json`), JSON.stringify(evidence, null, 2) + "\n", "utf8");
+    await writeFile(path.join(OUT_DIR, `profile_${p.id}.json`), JSON.stringify(profile, null, 2) + "\n", "utf8");
+    await writeFile(path.join(OUT_DIR, `evidence/evidence_${p.id}.json`), JSON.stringify(evidence, null, 2) + "\n", "utf8");
   }
 
   // 全議員が出揃ってから突出度を計算し、プロファイルに書き戻す
@@ -357,45 +437,175 @@ async function main() {
     await writeFile(path.join(OUT_DIR, `profile_${pr.speaker_id}.json`), JSON.stringify(pr, null, 2) + "\n", "utf8");
   }
 
-  // --- 政党プロファイル：所属議員の cells を n で加重平均（対象1人の党も含める）---
-  const byParty = new Map();
-  for (const pr of profiles) {
-    if (!byParty.has(pr.party)) byParty.set(pr.party, []);
-    byParty.get(pr.party).push(pr);
-  }
+  // --- 政党プロファイル -----------------------------------------------------
+  //
+  // 公約（data/utterances-party.jsonl）を主、所属議員の発言を従にして混ぜる。
+  // 議席を持つ全政党を対象にするので、プロファイルを作った議員がいない党もここに出る。
 
-  const partyProfiles = [];
-  for (const [party, members] of byParty) {
+  /** 議員プロファイルの cells / frames を n 加重で1つにまとめる */
+  const aggregateMembers = (members) => {
     const cells = new Map();
     for (const m of members) {
       for (const c of m.cells) {
         const key = cellKey(c);
-        if (!cells.has(key)) cells.set(key, { frame: c.frame, target: c.target, role: c.role, n: 0, scoreNum: 0, shareNum: 0 });
+        if (!cells.has(key)) {
+          cells.set(key, { frame: c.frame, target: c.target, role: c.role, n: 0, scoreNum: 0, shareNum: 0 });
+        }
         const agg = cells.get(key);
         agg.n += c.n;
         agg.scoreNum += c.score * c.n;
         agg.shareNum += c.share * c.n;
       }
     }
-    const totalN = [...cells.values()].reduce((a, c) => a + c.n, 0);
+    // share は「議員ごとの share を n で加重平均したもの」を、合計1になるよう正規化する。
+    // 件数の比（旧実装）だと、発言量の多い議員の癖がそのまま党の傾向になってしまう。
+    const totalShare = [...cells.values()].reduce((a, c) => a + c.shareNum / Math.max(c.n, 1), 0);
+    const out = new Map();
+    for (const [key, c] of cells) {
+      out.set(key, {
+        frame: c.frame,
+        target: c.target,
+        role: c.role,
+        score: c.n > 0 ? c.scoreNum / c.n : 0,
+        share: totalShare > 0 ? c.shareNum / Math.max(c.n, 1) / totalShare : 0,
+        n: c.n,
+      });
+    }
+
+    const frames = {};
+    for (const f of FRAMES) {
+      const n = members.reduce((a, m) => a + (m.frames[f]?.n ?? 0), 0);
+      const shareNum = members.reduce((a, m) => a + (m.frames[f]?.share ?? 0) * (m.frames[f]?.n ?? 0), 0);
+      const scoreNum = members.reduce((a, m) => a + (m.frames[f]?.score ?? 0) * (m.frames[f]?.n ?? 0), 0);
+      frames[f] = { score: n > 0 ? scoreNum / n : null, share: n > 0 ? shareNum / n : 0, n };
+    }
+    const frameTotal = Object.values(frames).reduce((a, v) => a + v.share, 0);
+    if (frameTotal > 0) for (const v of Object.values(frames)) v.share /= frameTotal;
+
+    return { cells: out, frames };
+  };
+
+  /** 公約側と議員側を share で混ぜる。score は share で加重平均する */
+  const blend = (manifesto, members, w) => {
+    const keys = new Set([...manifesto.keys(), ...members.keys()]);
+    const out = [];
+    for (const key of keys) {
+      const m = manifesto.get(key);
+      const p = members.get(key);
+      const mShare = w * (m?.share ?? 0);
+      const pShare = (1 - w) * (p?.share ?? 0);
+      const share = mShare + pShare;
+      if (share <= 0) continue;
+      out.push({
+        frame: (m ?? p).frame,
+        target: (m ?? p).target,
+        role: (m ?? p).role,
+        score: round(((m?.score ?? 0) * mShare + (p?.score ?? 0) * pShare) / share),
+        share: round(share),
+        n: (m?.n ?? 0) + (p?.n ?? 0),
+      });
+    }
+    return out.sort((a, b) => b.share - a.share);
+  };
+
+  const blendFrames = (manifesto, members, w) => {
+    const frames = {};
+    for (const f of FRAMES) {
+      const m = manifesto?.[f];
+      const p = members?.[f];
+      const mShare = w * (m?.share ?? 0);
+      const pShare = (1 - w) * (p?.share ?? 0);
+      const share = mShare + pShare;
+      const n = (m?.n ?? 0) + (p?.n ?? 0);
+      frames[f] = {
+        // 語っていないフレームの score は「向き」がないので null（議員側と同じ扱い）
+        score: share > 0 ? round(((m?.score ?? 0) * mShare + (p?.score ?? 0) * pShare) / share) : null,
+        share: round(share),
+        n,
+      };
+    }
+    return frames;
+  };
+
+  // 公約の抽出結果を党ごとに分ける
+  const manifestoByParty = new Map();
+  for (const u of partyUtterances ?? []) {
+    if (!manifestoByParty.has(u.speaker_id)) manifestoByParty.set(u.speaker_id, []);
+    manifestoByParty.get(u.speaker_id).push(u);
+  }
+
+  const membersByParty = new Map();
+  for (const pr of profiles) {
+    if (!membersByParty.has(pr.party)) membersByParty.set(pr.party, []);
+    membersByParty.get(pr.party).push(pr);
+  }
+
+  const partyProfiles = [];
+  const partyEvidences = new Map();
+
+  for (const entry of partyMaster.entries) {
+    if (!entry.active) continue;
+
+    const manifestoUtterances = manifestoByParty.get(entry.id) ?? [];
+    const members = membersByParty.get(entry.name) ?? [];
+    if (manifestoUtterances.length === 0 && members.length === 0) continue;
+
+    let manifestoCells = new Map();
+    let manifestoFrames = null;
+    let evidence = null;
+    let nSegments = 0;
+    let nSegmentsValued = 0;
+
+    if (manifestoUtterances.length > 0) {
+      const built = buildPolitician(entry, manifestoUtterances, args.minN);
+      manifestoCells = new Map(built.profile.cells.map((c) => [cellKey(c), c]));
+      manifestoFrames = built.profile.frames;
+      evidence = built.evidence;
+      nSegments = built.profile.n_segments_total;
+      nSegmentsValued = built.profile.n_segments_valued;
+    }
+
+    const { cells: memberCells, frames: memberFrames } = aggregateMembers(members);
+
+    // 片側しか無いときは、その側を満額で使う（重みを掛けると合計が1にならない）
+    const weight = manifestoCells.size > 0 && memberCells.size > 0
+      ? args.manifestoWeight
+      : (manifestoCells.size > 0 ? 1 : 0);
+
     const profile = {
-      party,
+      party_id: entry.id,
+      party: entry.name,
       computed_at: new Date().toISOString(),
       profile_version: PROFILE_VERSION,
+      source: manifestoCells.size > 0 && memberCells.size > 0
+        ? "mixed"
+        : (manifestoCells.size > 0 ? "manifesto" : "members"),
+      manifesto_weight: round(weight, 2),
+      // 公約側のセグメント数。share が何の比率かを追えるようにしておく
+      n_segments_total: nSegments,
+      n_segments_valued: nSegmentsValued,
       n_politicians: members.length,
       politicians: members.map((m) => m.speaker_id),
-      cells: [...cells.values()]
-        .map((c) => ({
-          frame: c.frame, target: c.target, role: c.role,
-          score: c.n > 0 ? round(c.scoreNum / c.n) : 0,
-          share: totalN > 0 ? round(c.n / totalN) : 0,
-          n: c.n,
-        }))
-        .sort((a, b) => b.share - a.share),
+      cells: blend(manifestoCells, memberCells, weight),
+      frames: blendFrames(manifestoFrames, memberFrames, weight),
+      summary: null, // attachDistinctiveness の後で入れる
     };
+
     partyProfiles.push(profile);
-    const safe = party.replace(/[^\p{L}\p{N}]/gu, "_");
+    if (evidence) partyEvidences.set(entry.name, { ...evidence, party_id: entry.id, party: entry.name });
+  }
+
+  // 突出度は「全政党の平均と比べてどうか」で出す。議員側とは母集団が違うので別に計算する。
+  attachDistinctiveness(partyProfiles);
+  for (const pr of partyProfiles) pr.summary = makeSummary(pr);
+
+  for (const profile of partyProfiles) {
+    const safe = profile.party.replace(/[^\p{L}\p{N}]/gu, "_");
     await writeFile(path.join(OUT_DIR, `party/profile_party_${safe}.json`), JSON.stringify(profile, null, 2) + "\n", "utf8");
+    const evidence = partyEvidences.get(profile.party);
+    if (evidence) {
+      await writeFile(path.join(OUT_DIR, `party/evidence/evidence_party_${safe}.json`), JSON.stringify(evidence, null, 2) + "\n", "utf8");
+    }
   }
 
   // --- 【2b】セル逆引きインデックス：KV はセル→議員の逆引きができないので別途作る ---
@@ -463,7 +673,21 @@ async function main() {
 
     console.log(`\nサイズ  profile ${(profBytes / 1024).toFixed(0)}KB（マッチ計算はこちらだけ読む）`);
     console.log(`        evidence ${(evBytes / 1024).toFixed(0)}KB（表示する議員の分だけ読む）`);
-    console.log(`\n政党プロファイル ${partyProfiles.length}件  ${partyProfiles.map((p) => `${p.party}(${p.n_politicians}人/${p.cells.length}セル)`).join(" ")}`);
+    const SOURCE_JA = { manifesto: "公約のみ", members: "議員のみ", mixed: "公約＋議員" };
+    console.log(`\n=== 政党プロファイル ${partyProfiles.length}党（公約の重み ${args.manifestoWeight}）===`);
+    console.log([pad("政党", 16), pad("出所", 12), pad("議員", 5), pad("公約segs", 9), pad("cells", 6), "上位フレーム"].join(""));
+    for (const pr of partyProfiles) {
+      const top = Object.entries(pr.frames).sort((a, b) => b[1].share - a[1].share).slice(0, 3)
+        .map(([f, v]) => `${f}(${Math.round(v.share * 100)}%${v.score !== null && v.score < -0.2 ? " ▼" : ""})`).join(" ");
+      console.log([
+        pad(pr.party, 16 - (pr.party.length - [...pr.party].length)),
+        pad(SOURCE_JA[pr.source], 12 - (SOURCE_JA[pr.source].length - [...SOURCE_JA[pr.source]].length)),
+        pad(pr.n_politicians, 5),
+        pad(pr.n_segments_total, 9),
+        pad(pr.cells.length, 6),
+        top,
+      ].join(""));
+    }
     console.log(`セル逆引き ${manifest.length}件`);
     console.log(`出力 data/profiles/`);
   }

@@ -624,7 +624,7 @@ function Profile({
         </div>
       </header>
       <section className="profile-content">
-        <div className="section-heading"><div>考えが近い政治家</div><span>総合マッチ</span></div>
+        <div className="section-heading profile-matches-heading"><div>考えが近い政治家・政党</div><span>総合マッチ</span></div>
         <ProfileMatches savedCount={savedCount} result={matchResult} status={matchesStatus} />
         <ProfileTrends cells={cells} status={cellsStatus} />
         <p className="demo-disclaimer dark-text">{matchResult?.disclaimer ?? "これは参考情報であり、特定の候補者や政党への投票を推奨するものではありません。"}</p>

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import parties from "../../scripts/kokkai/parties.json" with { type: "json" };
 import test from "node:test";
 
 const userProfile = {
@@ -33,26 +34,6 @@ const profiles = new Map([
     politicians: ["P00001", "P00002", "P00003"],
     cells: cells(0.4).map(({ distinctiveness: _distinctiveness, ...cell }) => cell),
   }],
-  ["profile:evidence:P00001", {
-    cells: {
-      "care_harm|自然環境|beneficiary": [{
-        date: "2026-01-01",
-        summary: "環境への影響を抑える必要性を述べた。",
-        url: "https://kokkai.ndl.go.jp/example",
-        quote: "前段根拠箇所後段",
-        block_text: null,
-        evidence_text: "根拠箇所",
-        evidence_span: [2, 6],
-      }],
-      "fairness|地方|beneficiary": [{
-        date: null,
-        summary: "地方への公正な配分を掲げた。",
-        url: "https://example.com/policy",
-      }],
-    },
-  }],
-  ["profile:evidence:P00002", { cells: {} }],
-  ["profile:evidence:P00003", { cells: {} }],
 ]);
 
 async function request({ user = userProfile, values = profiles, paginated = false } = {}) {
@@ -101,32 +82,80 @@ async function request({ user = userProfile, values = profiles, paginated = fals
   return { response, calls };
 }
 
-test("総合マッチをGETで返し、上位3人だけ根拠を読む", async () => {
+test("総合マッチをGETで返し、evidence は読まない", async () => {
   const { response, calls } = await request();
   const data = await response.json();
 
   assert.equal(response.status, 200);
   assert.equal(data.reliable, true);
   assert.deepEqual(data.matches.map((match) => match.speaker_id), ["P00001", "P00002", "P00003"]);
-  assert.equal(calls.filter((key) => key.startsWith("profile:evidence:")).length, 3);
+  assert.deepEqual(calls.filter((key) => key.startsWith("profile:evidence:")), []);
   assert.equal(calls.filter((key) => key === "list:cellidx:").length, 1);
-  assert.deepEqual(data.party_matches, [{
+  assert.deepEqual(data.party_matches.map(({ reasons: _reasons, differences: _differences, ...party }) => party), [{
+    party_id: "PT01",
     party: "自由民主党",
-    match_score: 62,
+    short_name: "自民",
+    website: "https://www.jimin.jp/",
+    seats: { shugiin: 316, sangiin: 101 },
+    color: "#3CA324",
+    summary: "",
+    source: "members",
+    match_score: 100,
     matched_cells: 2,
     n_politicians: 3,
   }]);
+  assert.equal(data.party_matches[0].reasons.length, 2);
 });
 
-test("国会会議録だけ原文を返し、公式サイト由来は要約とURLに限定する", async () => {
-  const data = await (await request()).response.json();
-  const [kokkai, website] = data.matches[0].evidence;
+// 候補議員の所属党だけを見ると、プロファイルを作った15人の党しか出てきません。
+// 公約だけでプロファイルを作った党も並べるため、党の一覧は parties.json が正です。
+test("議席を持つ全政党のプロファイルを読む", async () => {
+  const { calls } = await request();
+  const asked = calls.filter((key) => key.startsWith("profile:party:"));
 
-  assert.equal(kokkai.quote, "前段根拠箇所後段");
-  assert.equal(kokkai.highlight, "根拠箇所");
-  assert.equal(website.summary, "地方への公正な配分を掲げた。");
-  assert.ok(!("quote" in website));
-  assert.ok(!("highlight" in website));
+  assert.equal(asked.length, parties.parties.filter((party) => party.active !== false).length);
+  assert.ok(asked.includes("profile:party:社会民主党"));
+});
+
+// 政治コンパス画面は発言の原文を出さないので、何人並べても evidence は読みません。
+test("議員は上位7人までにし、evidence は1件も読まない", async () => {
+  const ids = ["P00001", "P00002", "P00003", "P00004", "P00005", "P00006", "P00007", "P00008", "P00010"];
+  const many = new Map(profiles);
+  // share が大きいほどマッチが高くなるので、ID順がそのまま順位になります。
+  ids.forEach((speakerId, index) => many.set(`profile:${speakerId}`, {
+    speaker_id: speakerId,
+    politician_name: speakerId,
+    party: "自由民主党",
+    house: "衆議院",
+    cells: cells(0.1 - index * 0.01),
+  }));
+
+  const { response, calls } = await request({ values: many });
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(data.matches.map((match) => match.speaker_id), ids.slice(0, 7));
+  assert.deepEqual(calls.filter((key) => key.startsWith("profile:evidence:")), []);
+  assert.ok(data.matches.every((match) => !("evidence" in match)));
+});
+
+// 政党も議員と同じ7件までにします（タブを切り替えても母数が変わって見えないように）。
+test("政党も上位7党までにする", async () => {
+  const names = parties.parties.filter((party) => party.active !== false).map((party) => party.name);
+  const many = new Map(profiles);
+  // 突出度が高いほどマッチが高くなるので、parties.json の並び順がそのまま順位になります。
+  names.slice(0, 9).forEach((name, index) => many.set(`profile:party:${name}`, {
+    party: name,
+    n_politicians: 1,
+    politicians: ["P00001"],
+    // EMPHASIS_SCALE を掛けると突出度 0.65 以上で上限に張り付くので、その手前で差をつける。
+    cells: cells(0.1).map((cell) => ({ ...cell, distinctiveness: 0.6 - index * 0.06 })),
+  }));
+
+  const data = await (await request({ values: many })).response.json();
+
+  assert.equal(data.party_matches.length, 7);
+  assert.deepEqual(data.party_matches.map((party) => party.party), names.slice(0, 7));
 });
 
 test("回答が5記事未満なら議員プロファイルを読まず信頼性不足を返す", async () => {

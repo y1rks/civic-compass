@@ -12,6 +12,7 @@ D1 と KV に格納されているデータの仕様。
 議員側                                  ユーザー側
 ─────────────────────  ─────────────────────
 国会会議録API / 議員の公式サイト          記事の設問への回答
+政党の公約ページ（政党プロファイル用）
         ↓ 収集・前処理・LLM抽出                  ↓ 意見の保存
 【1】utterances    ──→ D1              【3a】answers      ──→ D1
         ↓ 集計（バッチ・何度でも再生成可）        ↓ 集計（保存のたび・同上）
@@ -143,8 +144,9 @@ energy-2035_q1_neutral   neutral   特に気にならない
 | 列 | 型 | 意味 |
 |---|---|---|
 | `utterance_id` | TEXT PK | `{block_id}_seg{NN}`。決定的に決まる |
-| `speaker_id` | TEXT | `P00001` など。`scripts/kokkai/politicians.json` が正 |
-| `politician_name` | TEXT | 表示用 |
+| `speaker_id` | TEXT | 議員は `P00001`（`scripts/kokkai/politicians.json` が正）、政党は `PT01`（`scripts/kokkai/parties.json` が正） |
+| `politician_name` | TEXT | 表示用。議員は氏名、政党は党名 |
+| `entity_kind` | TEXT | `politician` / `party`。**集計時は必ずどちらかに絞る**（下記） |
 | `source_kind` | TEXT | `kokkai` / `web` / `manual` |
 | `meeting_id` `speech_id` `speech_index` | TEXT/INT | 国会会議録 API の識別子 |
 | `segment_index` | INT | 発言ブロックを分割したときの通し番号 |
@@ -164,6 +166,23 @@ energy-2035_q1_neutral   neutral   特に気にならない
 | `block_text` | TEXT | 分割前のブロック全文。**分割していなければ NULL** |
 | `quotable` | INT(bool) | 下記 |
 | `rejected_frames` | TEXT(JSON) | 原文に引用が見つからず採用しなかったフレーム（監査用） |
+
+#### `entity_kind` —— 議員の発言と政党の公約が同居している
+
+政党の公約も、議員の公式サイトとまったく同じ経路（見出しで区切る → LLM で分割 → 抽出）
+を通るので、同じ表に入れている。`speaker_id` の採番空間が分かれている（`P` と `PT`）ので
+衝突はしないが、**集計時は必ず `entity_kind` で絞ること**。混ぜると党の公約が
+議員個人のプロファイルに入り込む。
+
+```sql
+-- 議員プロファイルの元データ
+SELECT * FROM utterances WHERE entity_kind = 'politician';
+-- 政党プロファイルの元データ（公約）
+SELECT * FROM utterances WHERE entity_kind = 'party';
+```
+
+ローカルのファイルも `data/utterances.jsonl`（議員）と
+`data/utterances-party.jsonl`（政党）に分けてある。
 
 #### `answer_context` と `weight`
 
@@ -411,18 +430,54 @@ KV はセル→議員の逆引きができないので、バッチで別途作�
 
 ## 【2c】政党プロファイル（KV: `profile:party:{党名}`）
 
-所属議員の cells を `n` で加重平均したもの。**対象議員が1人の党も含める**（プロトタイプ方針）。
+**国会（衆参いずれか）に議席を持つ全政党**が対象。一覧は `scripts/kokkai/parties.json` が正で、
+議員マスタから所属党を数え上げたものではない（プロファイルを作った15人がいない党も並べるため）。
+
+**公約を主、所属議員の発言を従にして混ぜる。** 議員の平均だけで党の傾向を作ると、
+その党から誰を選んだかでプロファイルが動いてしまう（自民は高市氏と河野氏で cells がかなり違う）。
+党として公表している公約のほうが「党の立場」に近いので主にする。
+
+| `source` | 中身 |
+|---|---|
+| `manifesto` | 公約だけ。プロファイルを作った所属議員がいない党（社民・保守など） |
+| `members` | 所属議員だけ。公約をまだ抽出していない党 |
+| `mixed` | 公約 `manifesto_weight`（既定 0.7）＋ 議員 `1 − manifesto_weight` |
+
+```
+share = w × 公約の share + (1 − w) × 議員の share      ← 両側とも合計1なので、混ぜても合計1
+score = 上の2項を share で加重平均
+n     = 公約側の n ＋ 議員側の n
+distinctiveness = (share + PRIOR) / (全政党の平均share + PRIOR)
+```
+
+`distinctiveness` の母集団は**全政党**。議員側の値（母集団は議員15人）とは意味が違うので、
+議員のマッチ度と政党のマッチ度を同じ土俵で比べないこと。画面でもタブを分けている。
+
+議員側の share は「議員ごとの share を `n` で加重平均して合計1に正規化したもの」。
+件数の比にすると、発言量の多い議員の癖がそのまま党の傾向になる。
 
 ```jsonc
 {
+  "party_id": "PT01",
   "party": "自由民主党",
+  "source": "mixed",
+  "manifesto_weight": 0.7,
+  "n_segments_total": 120,     // 公約側のセグメント数
+  "n_segments_valued": 96,
   "n_politicians": 4,
   "politicians": ["P00001", "P00002", "P00003", "P00004"],
-  "cells": [ { "frame": "...", "target": "...", "role": "...", "score": 0.9, "share": 0.05, "n": 120 } ]
+  "cells": [ { "frame": "...", "target": "...", "role": "...", "score": 0.9, "share": 0.05, "n": 120, "distinctiveness": 1.3 } ],
+  "frames": { "care_harm": { "score": 0.9, "share": 0.2, "n": 300, "distinctiveness": 1.1 } },
+  "summary": "特に主権・自立を重んじる傾向。"
 }
 ```
 
-evidence は持たない。大政党ほど平均でマッチ度が中庸に寄る点に注意。
+大政党ほど議員の平均でマッチ度が中庸に寄る点に注意（公約を主にしたのはこれを弱めるためでもある）。
+
+### 政党の evidence（KV: `profile:party:evidence:{党名}`）
+
+議員の `profile:evidence:` と同じ形。ただし公約は**政党サイトの著作物**なので
+`quotable: false` で、要約と URL しか入らない（原文の引用は載せない）。
 
 ---
 

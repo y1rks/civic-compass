@@ -4,17 +4,16 @@ import type { AppEnv } from "../bindings";
 import { CURRENT_USER_ID } from "../current-user";
 import { politicianMatches } from "../data/politicians";
 import politiciansMaster from "../../../scripts/kokkai/politicians.json";
+import partiesMaster from "../../../scripts/kokkai/parties.json";
 import {
   MIN_ANSWERS,
   calculateProfileMatch,
-  cellKey,
   isPartyProfile,
   isPoliticianProfile,
   isUserProfile,
   makeUserSummary,
   parseCellKey,
   type CellKey,
-  type MatchReason,
   type PartyProfile,
   type PoliticianProfile,
 } from "../profile-match";
@@ -22,6 +21,15 @@ import {
 const matches = new Hono<AppEnv>();
 
 const DISCLAIMER = "これは参考情報であり、特定の候補者や政党への投票を推奨するものではありません。";
+
+/**
+ * 画面に並べる数。議員・政党とも同じ7件にします。
+ *
+ * 対象議員15人・議席を持つ政党13党に対して7件なので、どちらも「近い側の半分」までが
+ * 見えます。片方だけ件数が違うと、タブを切り替えたときに母数が変わったように見えます。
+ */
+const MAX_MATCHES = 7;
+
 const INSUFFICIENT_SUMMARY = "もう少しニュースへの考えを保存すると、考えが近い政治家を分析できます。";
 
 type PoliticianMaster = {
@@ -33,59 +41,28 @@ type PoliticianMaster = {
   active?: boolean;
 };
 
-type EvidenceEntry = {
-  date?: string | null;
-  summary: string;
-  url: string;
-  quote?: string;
-  block_text?: string | null;
-  evidence_text?: string;
-  evidence_span?: [number, number];
-};
-
-type EvidenceProfile = {
-  cells: Record<string, EvidenceEntry[]>;
-};
-
-type MatchEvidence = {
-  date: string | null;
-  summary: string;
-  url: string;
-  frame: MatchReason["frame"];
-  target: MatchReason["target"];
-  role: MatchReason["role"];
-  quote?: string;
-  highlight?: string;
+/**
+ * 政党マスタ。**国会に議席を持つ政党すべて**を持ちます。
+ *
+ * 議員マスタから所属党を数え上げると、プロファイルを作った15人が属する党しか出てきません。
+ * 政党マッチは公約から作ったプロファイルで全党を横並びに比べるので、党の一覧はここが正です。
+ */
+type PartyMaster = {
+  party_id: string;
+  name: string;
+  short_name: string;
+  seats: { shugiin: number; sangiin: number };
+  website: string;
+  /** 政党色（Wikipedia Template:政党色）。アイコンの塗りにだけ使います。 */
+  color: string;
+  active?: boolean;
 };
 
 const activePoliticians = (politiciansMaster.politicians as PoliticianMaster[])
   .filter((politician) => politician.active !== false);
 
-const isEvidenceEntry = (value: unknown): value is EvidenceEntry => {
-  if (typeof value !== "object" || value === null) return false;
-  const entry = value as Record<string, unknown>;
-  const span = entry.evidence_span;
-  return typeof entry.summary === "string"
-    && typeof entry.url === "string"
-    && (entry.date === undefined || entry.date === null || typeof entry.date === "string")
-    && (entry.quote === undefined || typeof entry.quote === "string")
-    && (entry.block_text === undefined || entry.block_text === null || typeof entry.block_text === "string")
-    && (entry.evidence_text === undefined || typeof entry.evidence_text === "string")
-    && (span === undefined || (
-      Array.isArray(span)
-      && span.length === 2
-      && span.every((position) => typeof position === "number" && Number.isInteger(position))
-    ));
-};
-
-const isEvidenceProfile = (value: unknown): value is EvidenceProfile => {
-  if (typeof value !== "object" || value === null) return false;
-  const profile = value as Record<string, unknown>;
-  if (typeof profile.cells !== "object" || profile.cells === null || Array.isArray(profile.cells)) return false;
-  return Object.values(profile.cells).every(
-    (entries) => Array.isArray(entries) && entries.every(isEvidenceEntry),
-  );
-};
+const activeParties = (partiesMaster.parties as PartyMaster[])
+  .filter((party) => party.active !== false);
 
 async function listCellUniverse(namespace: KVNamespace): Promise<Set<CellKey>> {
   const universe = new Set<CellKey>();
@@ -102,42 +79,6 @@ async function listCellUniverse(namespace: KVNamespace): Promise<Set<CellKey>> {
   } while (cursor);
 
   return universe;
-}
-
-function toEvidence(reason: MatchReason, entry: EvidenceEntry): MatchEvidence | null {
-  if (entry.url.length === 0) return null;
-  const base: MatchEvidence = {
-    date: entry.date ?? null,
-    summary: entry.summary,
-    url: entry.url,
-    frame: reason.frame,
-    target: reason.target,
-    role: reason.role,
-  };
-
-  // quote がある国会会議録だけ原文を返します。公式サイト由来には原文項目を足しません。
-  if (entry.quote === undefined) return base;
-  const full = entry.block_text ?? entry.quote;
-  const span = entry.evidence_span;
-  const highlight = span
-    && span[0] >= 0
-    && span[1] >= span[0]
-    && span[1] <= full.length
-    ? full.slice(span[0], span[1])
-    : entry.evidence_text;
-
-  return { ...base, quote: full, ...(highlight ? { highlight } : {}) };
-}
-
-function selectEvidence(profile: EvidenceProfile | null, reasons: MatchReason[]): MatchEvidence[] {
-  if (!profile) return [];
-  const selected: MatchEvidence[] = [];
-  for (const reason of reasons) {
-    const entries = profile.cells[cellKey(reason)] ?? [];
-    const evidence = entries.map((entry) => toEvidence(reason, entry)).find((entry) => entry !== null);
-    if (evidence) selected.push(evidence);
-  }
-  return selected.slice(0, 3);
 }
 
 const unreliableResponse = (userId: string, summary = INSUFFICIENT_SUMMARY) => ({
@@ -188,61 +129,67 @@ matches.get("/profile", async (c) => {
         b.result.match_score - a.result.match_score
         || b.result.matched_cells - a.result.matched_cells
         || a.profile.speaker_id.localeCompare(b.profile.speaker_id))
-      .slice(0, 3);
+      .slice(0, MAX_MATCHES);
 
     if (ranked.length === 0) {
       return c.json(unreliableResponse(user.user_id, makeUserSummary(user)));
     }
 
-    const rawEvidenceProfiles = await Promise.all(
-      ranked.map(({ profile }) => c.env.PROFILES.get<unknown>(`profile:evidence:${profile.speaker_id}`, "json")),
-    );
-    const evidenceProfiles: (EvidenceProfile | null)[] = [];
-    for (const rawEvidence of rawEvidenceProfiles) {
-      if (rawEvidence !== null && !isEvidenceProfile(rawEvidence)) {
-        return c.json({ status: "error", message: "根拠データの形式が不正です。" }, 500);
-      }
-      evidenceProfiles.push(rawEvidence);
-    }
-
-    const parties = [...new Set(candidates.map(({ profile }) => profile.party))];
+    // 候補議員の所属党ではなく、議席を持つ全政党を対象にします。
+    // 対象議員のいない党（公約だけでプロファイルを作った党）も並べるためです。
     const rawPartyProfiles = await Promise.all(
-      parties.map((party) => c.env.PROFILES.get<unknown>(`profile:party:${party}`, "json")),
+      activeParties.map((party) => c.env.PROFILES.get<unknown>(`profile:party:${party.name}`, "json")),
     );
-    const partyProfiles: PartyProfile[] = [];
+    const partyEntries: { master: PartyMaster; profile: PartyProfile }[] = [];
     for (const [index, rawProfile] of rawPartyProfiles.entries()) {
       if (rawProfile === null) continue;
-      if (!isPartyProfile(rawProfile) || rawProfile.party !== parties[index]) {
+      if (!isPartyProfile(rawProfile) || rawProfile.party !== activeParties[index].name) {
         return c.json({ status: "error", message: "政党プロファイルの形式が不正です。" }, 500);
       }
-      partyProfiles.push(rawProfile);
+      partyEntries.push({ master: activeParties[index], profile: rawProfile });
     }
 
-    const politicianResults = ranked.map(({ master, profile, result }, index) => ({
+    // ★ここで `profile:evidence:{id}` は読みません。政治コンパス画面は発言の原文を
+    //   出さないためです。読むと議員1人あたり約1.1MB（profile 本体の100倍以上）を
+    //   無駄に展開することになります。
+    //   根拠の原文が要る画面は B（`GET /api/perspectives/:articleId`）が別に読みます。
+    const politicianResults = ranked.map(({ master, profile, result }) => ({
       speaker_id: profile.speaker_id,
       politician_name: profile.politician_name,
       party: profile.party,
       house: profile.house,
       website: master.website,
+      // バッチが cells から作った傾向の要約。カードに出します。
+      summary: profile.summary ?? "",
       match_score: result.match_score,
       matched_cells: result.matched_cells,
       reasons: result.reasons,
       differences: result.differences,
-      evidence: selectEvidence(evidenceProfiles[index] ?? null, result.reasons),
     }));
 
-    const partyResults = partyProfiles
-      .flatMap((profile) => {
+    const partyResults = partyEntries
+      .flatMap(({ master, profile }) => {
         const result = calculateProfileMatch(user, profile, universe);
-        return result.reliable ? [{ profile, result }] : [];
+        return result.reliable ? [{ master, profile, result }] : [];
       })
-      .map(({ profile, result }) => ({
+      .map(({ master, profile, result }) => ({
+        party_id: master.party_id,
         party: profile.party,
+        short_name: master.short_name,
+        website: master.website,
+        seats: master.seats,
+        color: master.color,
+        summary: profile.summary ?? "",
+        // manifesto（公約のみ）/ members（所属議員のみ）/ mixed。画面で出典を断るために返します。
+        source: profile.source ?? "members",
         match_score: result.match_score,
         matched_cells: result.matched_cells,
         n_politicians: profile.n_politicians,
+        reasons: result.reasons,
+        differences: result.differences,
       }))
-      .sort((a, b) => b.match_score - a.match_score || a.party.localeCompare(b.party, "ja"));
+      .sort((a, b) => b.match_score - a.match_score || a.party.localeCompare(b.party, "ja"))
+      .slice(0, MAX_MATCHES);
 
     return c.json({
       user_id: user.user_id,

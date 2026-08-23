@@ -1,0 +1,1 @@
+ALTER TABLE `utterances` ADD `entity_kind` text DEFAULT 'politician' NOT NULL;
