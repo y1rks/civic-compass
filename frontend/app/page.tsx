@@ -615,7 +615,7 @@ function BottomNav({ screen, onChange }: { screen: Screen; onChange: (screen: Sc
   return (
     <nav className="bottom-nav" aria-label="メインナビゲーション">
       <button className={screen === "feed" ? "active" : ""} onClick={() => onChange("feed")}><Home size={21} /><span>ニュース</span></button>
-      <button className={`compass-action ${screen === "profile" ? "active" : ""}`} onClick={() => onChange("profile")}><Compass size={21} /><span>政治コンパス</span></button>
+      <button className={`compass-action ${screen === "profile" ? "active" : ""}`} onClick={() => onChange("profile")}><span className="compass-nav-icon"><Compass size={24} strokeWidth={2.4} /></span><span>政治コンパス</span></button>
       <button className={screen === "mypage" ? "active" : ""} onClick={() => onChange("mypage")}><UserRound size={21} /><span>マイページ</span></button>
     </nav>
   );
