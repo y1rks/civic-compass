@@ -112,7 +112,12 @@ async function main() {
       summary: u.summary ?? null,
       confidence: u.confidence ?? null,
       quote: u.quote,
-      block_text: u.block_text ?? null,
+      // ★引用できない出典（政党サイト・議員の公式サイト）は block_text を D1 に入れない。
+      //   原文を表示しないので使い道がなく、著作物を保持し続ける理由もない。
+      //   加えて、公約は1ページが3万字を超えることがあり、それが全セグメントに複製されると
+      //   1行だけで100KBを超えて D1 の SQLITE_TOOBIG に当たる。
+      //   原本は data/utterances*.jsonl に残る。
+      block_text: u.quotable === false ? null : (u.block_text ?? null),
       quotable: u.quotable,
       rejected_frames: u.rejected_frames?.length ? JSON.stringify(u.rejected_frames) : null,
     });
