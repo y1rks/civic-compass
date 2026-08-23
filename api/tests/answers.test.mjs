@@ -1,6 +1,7 @@
 // 「この記事への意見」の保存API。D1 をモックし、投げた SQL とパラメータを検証します。
 import assert from "node:assert/strict";
 import test from "node:test";
+import { withSessionCookie, withSessionDb } from "./session-fixture.mjs";
 
 // article_questions の1行ぶん。articles.ts の select と同じ列順です。
 const questionRows = [
@@ -52,18 +53,23 @@ function createKvMock() {
   };
 }
 
-async function post(body, db = createDbMock(), kv = createKvMock()) {
+async function post(
+  body,
+  db = createDbMock(),
+  kv = createKvMock(),
+  user = { user_id: "test_user1", name: "テストユーザー" },
+) {
   const workerUrl = new URL("../dist/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${Math.random()}`);
   const { default: app } = await import(workerUrl.href);
 
   const response = await app.fetch(
-    new Request("http://localhost/api/answers", {
+    new Request("http://localhost/api/answers", withSessionCookie({
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
-    }),
-    { DB: db, USER_PROFILES: kv },
+    })),
+    { DB: withSessionDb(db, user), USER_PROFILES: kv },
     {},
   );
   return { response, db, kv };
@@ -176,6 +182,19 @@ test("保存するとユーザープロファイルが KV に書かれる", asyn
   );
   // 議員側にしかない指標はユーザー側では持たない
   assert.ok(profile.cells.every((c) => !("distinctiveness" in c)));
+});
+
+test("CookieのユーザーごとにD1回答とUSER_PROFILESを分離する", async () => {
+  const db = createDbMock();
+  const kv = createKvMock();
+  const user = { user_id: "usr_browser_b", name: "ユーザーB" };
+  await post(valid, db, kv, user);
+
+  const insert = db.calls.find((call) => /insert into .?answers/i.test(call.query));
+  assert.ok(insert.params.includes("usr_browser_b"));
+  assert.ok(!insert.params.includes("test_user1"));
+  assert.ok(await kv.get("profile:user:usr_browser_b"));
+  assert.equal(await kv.get("profile:user:test_user1"), null);
 });
 
 test("「関心がない」で保存すると cells ではなく declined_cells に入る", async () => {

@@ -7,9 +7,11 @@ import {
   type UserProfile,
 } from "@civic-compass/shared";
 import type { AppEnv } from "../bindings";
-import { CURRENT_USER_ID } from "../current-user";
+import { requireCurrentUser } from "../session";
 
 const userProfile = new Hono<AppEnv>();
+
+userProfile.use("*", requireCurrentUser);
 
 type ProfileCell = UserProfile["cells"][number];
 
@@ -51,7 +53,8 @@ const isProfileCell = (value: unknown): value is ProfileCell => {
  *   画面側が回答を促す文言を出します）。
  */
 userProfile.get("/", async (c) => {
-  const raw = await c.env.USER_PROFILES.get(userProfileKey(CURRENT_USER_ID));
+  const currentUserId = c.get("currentUser").userId;
+  const raw = await c.env.USER_PROFILES.get(userProfileKey(currentUserId));
   if (raw === null) return c.json({ cells: [] });
 
   let profile: Partial<UserProfile>;

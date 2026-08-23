@@ -6,7 +6,8 @@ import {
   ExternalLink, Heart, Home, LockKeyhole, MessageCircleMore, Minus, Sparkles, Triangle, UserRound, X,
 } from "lucide-react";
 import {
-  getAnswers, getArticles, getCurrentUser, getPerspectives, getProfileMatches, getUserProfileCells, saveAnswer,
+  createSession, getAnswers, getArticles, getPerspectives, getProfileMatches, getSession, getUserProfileCells,
+  saveAnswer,
 } from "../lib/api";
 import type {
   Article, CurrentUser, Perspective, PerspectivePolitician, PerspectiveResult, PerspectiveStatement,
@@ -18,6 +19,7 @@ import { OpinionSheet } from "./opinion-sheet";
 import { ProfileTrends } from "./profile-trends";
 import { ProfileMatches } from "./profile-matches";
 import { MyPage } from "./my-page";
+import { Onboarding } from "./onboarding";
 import type { Answers } from "./question-block";
 
 type Screen = "feed" | "detail" | "profile" | "mypage";
@@ -47,10 +49,32 @@ export default function HomePage() {
   const [profileCells, setProfileCells] = useState<UserProfileCell[]>([]);
   const [profileCellsStatus, setProfileCellsStatus] = useState<"loading" | "ready" | "error">("loading");
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [currentUserStatus, setCurrentUserStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [sessionStatus, setSessionStatus] = useState<"loading" | "anonymous" | "ready" | "error">("loading");
+  const [sessionAttempt, setSessionAttempt] = useState(0);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSession()
+      .then((user) => {
+        if (cancelled) return;
+        setOnboardingError(null);
+        setCurrentUser(user);
+        setSessionStatus(user === null ? "anonymous" : "ready");
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load session", error);
+        if (!cancelled) setSessionStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionAttempt]);
 
   // オーバーレイの表示中に背景が動くと、閉じた後に記事の位置を見失います。
   // iOS を含めて確実に止めるため、現在位置で body を固定して復元します。
@@ -105,7 +129,7 @@ export default function HomePage() {
    * 画面が「保存した覚えのない記事」を保存済みとして出し続けるためです。
    */
   useEffect(() => {
-    if (screen !== "feed") return;
+    if (sessionStatus !== "ready" || screen !== "feed") return;
 
     let cancelled = false;
     void getAnswers()
@@ -118,11 +142,11 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [screen]);
+  }, [screen, sessionStatus]);
 
   useEffect(() => {
     const articleIds = Object.keys(saved);
-    if (articleIds.length === 0) {
+    if (sessionStatus !== "ready" || articleIds.length === 0) {
       return;
     }
 
@@ -141,10 +165,10 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [saved]);
+  }, [saved, sessionStatus]);
 
   useEffect(() => {
-    if (screen !== "profile") return;
+    if (sessionStatus !== "ready" || screen !== "profile") return;
 
     let cancelled = false;
     void getUserProfileCells()
@@ -161,27 +185,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [saved, screen]);
-
-  useEffect(() => {
-    if (screen !== "mypage") return;
-
-    let cancelled = false;
-    void getCurrentUser()
-      .then((user) => {
-        if (cancelled) return;
-        setCurrentUser(user);
-        setCurrentUserStatus("ready");
-      })
-      .catch((error: unknown) => {
-        console.error("Failed to load current user", error);
-        if (!cancelled) setCurrentUserStatus("error");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [screen]);
+  }, [saved, screen, sessionStatus]);
 
   useEffect(() => {
     if (screen !== "feed" || visibleCount >= articles.length) return;
@@ -251,6 +255,39 @@ export default function HomePage() {
     }
   };
 
+  const handleCreateUser = async (name: string) => {
+    setCreatingUser(true);
+    setOnboardingError(null);
+    try {
+      const user = await createSession(name);
+      setCurrentUser(user);
+      setSessionStatus("ready");
+    } catch (error) {
+      console.error("Failed to create user", error);
+      setOnboardingError("名前を登録できませんでした。もう一度お試しください。");
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  if (sessionStatus !== "ready" || currentUser === null) {
+    const onboardingStatus = sessionStatus === "ready" ? "error" : sessionStatus;
+    return (
+      <main className="app-shell">
+        <Onboarding
+          status={onboardingStatus}
+          submitting={creatingUser}
+          error={onboardingError}
+          onSubmit={handleCreateUser}
+          onRetry={() => {
+            setSessionStatus("loading");
+            setSessionAttempt((attempt) => attempt + 1);
+          }}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       {screen === "feed" && <Feed articles={articles.slice(0, visibleCount)} saved={saved} onOpen={openArticle} loadingMore={loadingMore} loadMoreRef={loadMoreRef} />}
@@ -278,7 +315,7 @@ export default function HomePage() {
         />
       )}
       {screen === "profile" && <Profile matchResult={profileMatchResult} matchesStatus={profileMatchesStatus} savedCount={Object.keys(saved).length} depth={analysisDepth(articles, saved)} cells={profileCells} cellsStatus={profileCellsStatus} />}
-      {screen === "mypage" && <MyPage user={currentUser} status={currentUserStatus} />}
+      {screen === "mypage" && <MyPage user={currentUser} status="ready" />}
       {screen !== "detail" && <BottomNav screen={screen} onChange={setScreen} />}
       {modalOpen && selected && (
         <PerspectiveModal

@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { CELL_ROLES, FRAME_JA_PLAIN, type CellRole, type Frame, type Stance, type Target } from "@civic-compass/shared";
 import { answerSelections, answers as answersTable, articleQuestions, createDb } from "@civic-compass/db";
 import type { AppEnv } from "../bindings";
-import { CURRENT_USER_ID } from "../current-user";
+import { requireCurrentUser } from "../session";
 
 /**
  * B（意見保存直後のポップアップ）。
@@ -32,6 +32,8 @@ import { CURRENT_USER_ID } from "../current-user";
  *   （docs/design-constraints.md「禁止事項」）。
  */
 const perspectives = new Hono<AppEnv>();
+
+perspectives.use("*", requireCurrentUser);
 
 /** 論点の上限。いまの記事は設問1〜2問ですが、増えても読み込み量が跳ねないように。 */
 const MAX_PERSPECTIVES = 3;
@@ -357,6 +359,7 @@ function toStatement(item: EvidenceItem) {
  * ユーザーの特定はサーバー側で完結しているので、受け取るのは記事IDだけです。
  */
 perspectives.get("/:articleId", async (c) => {
+  const currentUserId = c.get("currentUser").userId;
   const articleId = c.req.param("articleId");
   if (articleId.length === 0) {
     return c.json({ status: "error", message: "articleId is required" }, 400);
@@ -380,7 +383,7 @@ perspectives.get("/:articleId", async (c) => {
     .from(answerSelections)
     .innerJoin(answersTable, eq(answersTable.answerId, answerSelections.answerId))
     .innerJoin(articleQuestions, eq(articleQuestions.id, answerSelections.questionId))
-    .where(and(eq(answersTable.userId, CURRENT_USER_ID), eq(answersTable.articleId, articleId)))
+    .where(and(eq(answersTable.userId, currentUserId), eq(answersTable.articleId, articleId)))
     .orderBy(asc(articleQuestions.displayOrder));
 
   if (rows.length === 0) {

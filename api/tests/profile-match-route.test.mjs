@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import parties from "../../scripts/kokkai/parties.json" with { type: "json" };
 import test from "node:test";
+import { withSessionCookie, withSessionDb } from "./session-fixture.mjs";
 
 const userProfile = {
   user_id: "test_user1",
@@ -75,8 +76,8 @@ async function request({ user = userProfile, values = profiles, paginated = fals
   } };
 
   const response = await app.fetch(
-    new Request("http://localhost/api/matches/profile"),
-    { PROFILES: politicianKv, USER_PROFILES: userKv },
+    new Request("http://localhost/api/matches/profile", withSessionCookie()),
+    { DB: withSessionDb(), PROFILES: politicianKv, USER_PROFILES: userKv },
     {},
   );
   return { response, calls };

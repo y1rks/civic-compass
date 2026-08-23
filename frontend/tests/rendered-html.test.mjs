@@ -40,20 +40,10 @@ test("メタデータにcivic-compassの情報が含まれる", async () => {
   assert.match(html, /name="description"[^>]*content="[^"]*政治家[^"]*"/);
 });
 
-test("ニュース一覧の主要な要素が描画される", async () => {
+test("セッション確認中の画面がHTMLとして描画される", async () => {
   const html = await (await render("/")).text();
 
-  // ブランド表示とヘッダーのコピー
   assert.match(html, /civic-compass/);
-  assert.match(html, /今日の論点を/);
-
-  // 一覧のコンテナとボトムナビゲーション
-  assert.match(html, /aria-label="政治ニュース一覧"/);
-  assert.match(html, /政治コンパス/);
-  assert.match(html, /マイページ/);
-  assert.match(html, /aria-label="メインナビゲーション"/);
-  assert.match(html, /class="compass-nav-icon"/);
-
-  // 関心データがローカルにとどまることを伝える表示
-  assert.match(html, /関心データはあなただけに表示されます/);
+  assert.match(html, /利用情報を確認しています/);
+  assert.doesNotMatch(html, /aria-label="メインナビゲーション"/);
 });
