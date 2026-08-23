@@ -394,7 +394,7 @@ button { color:inherit; }
 .my-page-user-card>div:nth-child(2)>p:last-child { margin:5px 0 0; color:#74827f; font-size:9px; }
 .my-page-section-heading { display:flex; align-items:center; justify-content:space-between; margin:22px 3px 10px; }
 .my-page-section-heading h2 { margin:0; font-size:12px; }
-.my-page-summary { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); border-radius:15px; background:#fff; overflow:hidden; }
+.my-page-summary { display:grid; grid-template-columns:repeat(2,1fr); border:1px solid var(--line); border-radius:15px; background:#fff; overflow:hidden; }
 .my-page-summary>div { display:grid; justify-items:center; gap:5px; padding:15px 4px 13px; }
 .my-page-summary>div+div { border-left:1px solid var(--line); }
 .my-page-summary svg { color:var(--coral); }

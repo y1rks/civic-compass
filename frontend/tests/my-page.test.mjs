@@ -29,7 +29,7 @@ test("APIから受け取ったユーザー名とユーザーIDを表示する", 
   assert.doesNotMatch(html, /ダミーデータ/);
   assert.match(html, /保存した記事/);
   assert.match(html, /回答した論点/);
-  assert.match(html, /フォロー中/);
+  assert.doesNotMatch(html, /フォロー中/);
   assert.doesNotMatch(html, /あなたの関心は非公開です/);
 });
 

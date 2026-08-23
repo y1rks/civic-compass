@@ -45,7 +45,6 @@ export function MyPage({ user, status }: {
         <div className="my-page-summary">
           <div><Bookmark size={18} /><strong>12</strong><span>保存した記事</span></div>
           <div><Compass size={18} /><strong>8</strong><span>回答した論点</span></div>
-          <div><Bell size={18} /><strong>3</strong><span>フォロー中</span></div>
         </div>
 
         <div className="my-page-section-heading">
