@@ -99,7 +99,7 @@ test("総合マッチをGETで返し、evidence は読まない", async () => {
     seats: { shugiin: 316, sangiin: 101 },
     color: "#3CA324",
     source: "members",
-    match_score: 69.3,
+    match_score: 100,
     matched_cells: 2,
     n_politicians: 3,
   }]);
@@ -147,7 +147,8 @@ test("政党も上位7党までにする", async () => {
     party: name,
     n_politicians: 1,
     politicians: ["P00001"],
-    cells: cells(0.1).map((cell) => ({ ...cell, distinctiveness: 2 - index * 0.15 })),
+    // EMPHASIS_SCALE を掛けると突出度 0.65 以上で上限に張り付くので、その手前で差をつける。
+    cells: cells(0.1).map((cell) => ({ ...cell, distinctiveness: 0.6 - index * 0.06 })),
   }));
 
   const data = await (await request({ values: many })).response.json();

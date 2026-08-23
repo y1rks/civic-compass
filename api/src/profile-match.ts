@@ -12,8 +12,30 @@ import {
 export const MIN_POLITICIAN_CELL_COUNT = 3;
 export const MIN_MATCHED_CELLS = 2;
 export const MIN_ANSWERS = 5;
-export const SILENT_WEIGHT = 0.3;
-export const DECLINED_WEIGHT = 0.5;
+/**
+ * 「両者とも語らなかった」の重み。**κ（偶然を差し引いた一致率）は実測で平均0.19しか
+ * 出ない**ので、以前の 0.3 は取れない点を分母に置いているのと同じでした。
+ * 本人が回答したケースのスコアが 30pt ほど不当に下がっていたため縮めています。
+ */
+export const SILENT_WEIGHT = 0.05;
+
+/** 「関心がない」と明示したセルの一致。κ の実測は平均0.53。SILENT より重いのは従来どおり。 */
+export const DECLINED_WEIGHT = 0.1;
+
+/**
+ * 突出度を「一致の強さ」に直すときの倍率。
+ *
+ * `log(1 + distinctiveness)` は突出度が平均並み（1.0倍）だと **0.69** にしかならず、
+ * 完全に一致していてもセルの share の7割しか取れませんでした。実測で本人が
+ * 回答したケースの平均が 53.4% と低かった主因です（平均 agree は 0.955 と高いのに）。
+ *
+ * 2.0 を掛けると平均並みの突出度で満点（上限1.0）に届き、平均以下だけが割り引かれます。
+ *
+ * ⚠ 上げるほど「そのセルを持っているか」で決まるようになるため、**発言量の多い相手が
+ *   有利**になります。実測でセル数と平均順位の相関は 1.0倍で -0.04、1.44倍で -0.30、
+ *   2.0倍で -0.56。本人スコアとのトレードオフです。
+ */
+export const EMPHASIS_SCALE = 2;
 
 /**
  * 議員・政党が**一度も語っていない**セルを、ユーザーが優先順位を下げたセルと
@@ -301,7 +323,8 @@ export function calculateProfileMatch(
     //   `distinctiveness` は全議員平均に対する倍率なので、セル数の影響を受けません。
     //   自己再現テストで 1位的中 6/15 → 8/15、上位3 7/15 → 13/15、
     //   セル数と平均順位の相関 r = 0.61 → -0.04（＝データ量ではなく思想で並ぶようになった）。
-    const overlap = userCell.share * Math.log(1 + Math.max(0, distinctiveness));
+    const overlap = userCell.share
+      * Math.min(1, Math.log(1 + Math.max(0, distinctiveness)) * EMPHASIS_SCALE);
     const agree = Math.max(0, Math.min(1, 1 - Math.abs(userCell.score - politicianCell.score) / 2));
     // 1セルが自分の share を超えて稼がないよう頭打ちにします（重み付き平均を保つため）。
     const contribution = Math.min(overlap * agree, userCell.share);
@@ -330,7 +353,8 @@ export function calculateProfileMatch(
     if (!opposite || opposite.score <= STRONG_SCORE) continue;
 
     // 一致側と同じ尺度（ユーザーの share × 突出度）で引きます。
-    const weight = Math.min(userCell.share * Math.log(1 + Math.max(0, opposite.distinctiveness ?? 1)), userCell.share)
+    const weight = userCell.share
+      * Math.min(1, Math.log(1 + Math.max(0, opposite.distinctiveness ?? 1)) * EMPHASIS_SCALE)
       * OPPOSITE_ROLE_WEIGHT;
     numerator -= weight;
     oppositions.push({

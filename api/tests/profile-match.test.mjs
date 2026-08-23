@@ -185,7 +185,7 @@ test("declinedセルをsilentでも二重加点せず、スコアを0〜100に�
   }, new Set(["evidence_expertise|国際社会|threat"]));
 
   assert.equal(result.reliable, true);
-  assert.equal(result.match_score, 46.2);
+  assert.equal(result.match_score, 90.9);
   assert.ok(result.match_score <= 100);
 });
 
