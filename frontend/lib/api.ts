@@ -1,5 +1,5 @@
 import type {
-  Article, Match, PerspectiveResult, ProfileMatchesResponse, SavedAnswer, UserProfileCell,
+  Article, CurrentUser, Match, PerspectiveResult, ProfileMatchesResponse, SavedAnswer, UserProfileCell,
 } from "./types";
 
 type ArticlesResponse = {
@@ -20,6 +20,10 @@ type ArticleMatchesResponse = {
 
 type UserProfileResponse = {
   cells: UserProfileCell[];
+};
+
+type CurrentUserResponse = {
+  user: CurrentUser;
 };
 
 async function requestJson<T>(path: string, init: RequestInit | undefined, errorMessage: string): Promise<T> {
@@ -50,6 +54,12 @@ export async function getArticles(): Promise<Article[]> {
 export async function getAnswers(): Promise<SavedAnswer[]> {
   const data = await requestJson<AnswersResponse>("/api/answers", undefined, "保存済みの意見の取得に失敗しました");
   return data.answers;
+}
+
+/** いまログインしているユーザーの表示用情報。ユーザーの特定はサーバー側で行います。 */
+export async function getCurrentUser(): Promise<CurrentUser> {
+  const data = await requestJson<CurrentUserResponse>("/api/user", undefined, "ユーザー情報の取得に失敗しました");
+  return data.user;
 }
 
 export async function saveAnswer(input: {

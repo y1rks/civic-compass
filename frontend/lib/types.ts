@@ -44,6 +44,12 @@ export type SavedAnswer = {
   savedAt: string;
 };
 
+/** D1 users テーブルから取得する現在のユーザー情報。 */
+export type CurrentUser = {
+  user_id: string;
+  name: string;
+};
+
 export type Match = {
   id: string;
   name: string;

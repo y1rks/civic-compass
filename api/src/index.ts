@@ -7,6 +7,7 @@ import example from "./routes/example";
 import health from "./routes/health";
 import matches from "./routes/matches";
 import perspectives from "./routes/perspectives";
+import user from "./routes/user";
 import userProfile from "./routes/user-profile";
 
 const app = new Hono<AppEnv>();
@@ -39,6 +40,7 @@ app.route("/api/example", example);
 app.route("/api/health", health);
 app.route("/api/matches", matches);
 app.route("/api/perspectives", perspectives);
+app.route("/api/user", user);
 app.route("/api/user-profile", userProfile);
 
 app.onError((error, c) => {
