@@ -99,7 +99,7 @@ test("総合マッチをGETで返し、evidence は読まない", async () => {
     seats: { shugiin: 316, sangiin: 101 },
     color: "#3CA324",
     source: "members",
-    match_score: 62,
+    match_score: 69.3,
     matched_cells: 2,
     n_politicians: 3,
   }]);
@@ -142,12 +142,12 @@ test("議員は上位7人までにし、evidence は1件も読まない", async 
 test("政党も上位7党までにする", async () => {
   const names = parties.parties.filter((party) => party.active !== false).map((party) => party.name);
   const many = new Map(profiles);
-  // share が大きいほどマッチが高くなるので、parties.json の並び順がそのまま順位になります。
+  // 突出度が高いほどマッチが高くなるので、parties.json の並び順がそのまま順位になります。
   names.slice(0, 9).forEach((name, index) => many.set(`profile:party:${name}`, {
     party: name,
     n_politicians: 1,
     politicians: ["P00001"],
-    cells: cells(0.1 - index * 0.01).map(({ distinctiveness: _distinctiveness, ...cell }) => cell),
+    cells: cells(0.1).map((cell) => ({ ...cell, distinctiveness: 2 - index * 0.15 })),
   }));
 
   const data = await (await request({ values: many })).response.json();

@@ -282,6 +282,9 @@ PRIOR 0.5   Aさん               稲田朋美 47 斉藤鉄夫 42 / Bさん     
 ```js
 const SILENT_WEIGHT   = 0.3;   // ③ 両者とも持たない（たまたま一致）
 const DECLINED_WEIGHT = 0.5;   // ② ユーザーが明示的に降りたセルを、議員も語っていない
+const ABSENCE_WEIGHT  = 0.3;   // ① ユーザーが優先順位を下げたセルを、議員が語っていない（後述）
+const OPPOSITE_ROLE_WEIGHT = 1;  // ★逆の role で強く語っている＝思想の対立。減点する
+const STRONG_SCORE = 0.5;        // 「強く語った」の閾値。ユーザー側・議員側で同じ値
 ```
 
 ②で「議員は語っているのにユーザーが降りた」場合は**加点しません**。分母 `den` はユーザーの
@@ -363,6 +366,13 @@ const MIN_N = 3;              // 議員側のセルの下限
 const MIN_MATCHED = 2;        // これ未満なら reliable: false
 const SILENT_WEIGHT = 0.3;    // ③ 両者とも持たない（たまたま一致）
 const DECLINED_WEIGHT = 0.5;  // ② ユーザーが明示的に降りたセルを、議員も語っていない
+const ABSENCE_WEIGHT = 0.3;   // ① ユーザーが下げたセルを、議員が語っていない
+
+// 沈黙をどれだけ信用するか。公約は網羅的なので満額、答弁は観測量に応じて割り引く
+const ABSENCE_FULL_FRAMES = 1200;
+const absenceConfidence = pol.source === "manifesto" || pol.source === "mixed"
+  ? 1
+  : Math.min(1, pol.cells.reduce((t, c) => t + c.n, 0) / ABSENCE_FULL_FRAMES);
 
 function match(user, pol) {
   const pmap = new Map(pol.cells.map((c) => [key(c), c]));
@@ -374,19 +384,28 @@ function match(user, pol) {
     den += u.share;
 
     const p = pmap.get(key(u));
-    if (!p || p.n < MIN_N) continue;
+    if (!p) {
+      // ★語っていないセルは score -1（優先順位を下げた）とみなして突き合わせる
+      num += u.share * ABSENCE_WEIGHT * absenceConfidence * (1 - Math.abs(u.score - (-1)) / 2);
+      continue;
+    }
+    if (p.n < MIN_N) continue;
 
-    // 両者が重視するセルほど効く。ありふれたセルは distinctiveness で割り引く
-    const overlap = Math.sqrt(u.share * p.share) * Math.log(1 + p.distinctiveness);
+    // ★重みはユーザーの share、強さは突出度。相手の share は直接掛けない（後述）
+    const overlap = u.share * Math.log(1 + p.distinctiveness);
     const agree = 1 - Math.abs(u.score - p.score) / 2;   // 0〜1
 
-    num += overlap * agree;
+    num += Math.min(overlap * agree, u.share);   // 1セルは自分の share を超えて稼がない
     matched++;
     contrib.push({ ...u, w: overlap, agree, c: overlap * agree, polShare: p.share, polScore: p.score });
   }
 
-  // 「両者とも語らなかったセル」も一致として少しだけ数える
-  num += silentAgreement(user, pol) * SILENT_WEIGHT;
+  // 「両者とも語らなかったセル」も一致として少しだけ数える。
+  // ★ただし**偶然の一致を差し引く**（薄いプロファイルが自動的に稼ぐのを防ぐ）
+  const coverage = [...universe].filter((k) => pmap.has(k)).length / universe.size;
+  const kappa = (obs) => Math.max(0, Math.min(1, (obs - (1 - coverage)) / coverage));
+  num += kappa(silentAgreement(user, pol)) * SILENT_WEIGHT;
+  den += SILENT_WEIGHT;   // ★重み付き平均にする。分母に入れるのでスコアは 0〜100 に収まる
 
   if (matched < MIN_MATCHED) return { reliable: false };
 
@@ -417,15 +436,27 @@ function match(user, pol) {
 | `den` | **ユーザーが重視するセルの総量**。分母 | ループで加算 |
 | `matched` | 共通セルの数。信頼度の判定に使う | ループで加算 |
 
-#### `overlap` —— 両者がともに重視しているか
+#### `overlap` —— ユーザーの重み × 相手の突出度
 
 ```js
-const overlap = Math.sqrt(u.share * p.share) * Math.log(1 + p.distinctiveness);
+const overlap = u.share * Math.log(1 + p.distinctiveness);
 ```
 
-**相乗平均（`sqrt(a × b)`）を使う理由**は、**どちらか一方だけが重視しているセルを効かせない**
-ためです。単純平均 `(a + b) / 2` だと、ユーザーが触れていないセルでも議員側の share が
-大きければ点が入り、数字が膨らみます。相乗平均なら片方が0に近ければ全体も0に近づきます。
+**★相手の `share` を直接掛けてはいけません。** `share` は「その人の全セル中の比率」なので、
+**セルの少ない相手ほど1セルあたりが大きく出ます**。実測で 29セルの安野貴博と 83セルの神谷宗幣
+では、同じ言及量でも share が3倍近く違います。
+
+`distinctiveness`（＝全議員平均に対する倍率）はセル数の影響を受けないので、これで測ります。
+自己再現テスト（後述）で決定的な差が出ました。
+
+| 式 | 1位的中 | 上位3 | 平均順位 | セル数との相関 |
+|---|---:|---:|---:|---:|
+| `sqrt(u.share × p.share) × log(1+d)`（旧） | 6/15 | 7/15 | 4.80 | **+0.61** |
+| コサイン型 `u.share × p.share / ‖p‖` | 5/15 | 9/15 | 5.07 | +0.65 |
+| **`u.share × log(1+d)`（採用）** | **8/15** | **13/15** | **2.53** | **−0.04** |
+
+「セル数との相関」は、**そのプロファイルのセル数と、誰の回答に対しても得られる平均順位**の
+相関です。**0 に近いほど「データ量ではなく思想で並んでいる」**ことを意味します。
 
 ```
 u.share=0.20, p.share=0.20  → sqrt(0.04) = 0.200   両者とも重視 → 大きい
@@ -508,6 +539,155 @@ sovereignty  全議員が  2〜26%   （10倍以上の開き）→ 一致は強�
 
 （数値は抽出の進行につれて変わります。傾向として
 「`care_harm` は誰でも語る／`sovereignty` は議員で大きく割れる」を押さえてください）
+
+### ★式を変えたら必ず自己再現テストで測る
+
+`scripts/` には入れていませんが、検証は次の手順で再現できます。**議員・政党本人の
+プロファイルから「本人が設問カタログに回答したら」を合成し、本人が1位に返るかを測る**
+ものです（ユーザープロファイルは実際の `aggregateUserProfile` を通すので、
+平滑化も override 補正も本番と同じ）。
+
+```
+① KV から profile:{id} / profile:party:{名} / cellidx:* を取る
+② 各プロファイルの cells を設問カタログに突き合わせ、
+   score > 0.2 なら uphold、< -0.2 なら override、無ければ interest 0（関心なし）で回答を作る
+③ aggregateUserProfile → calculateProfileMatch で全員と照合し、本人の順位を見る
+```
+
+見るべき指標は4つです。
+
+| 指標 | 意味 | 目標 |
+|---|---|---|
+| 1位的中 | 本人が1位に返った割合 | 高いほどよい |
+| 平均順位 | 偶然なら (n+1)/2 | 小さいほどよい |
+| **セル数との相関** | プロファイルのセル数と「誰の回答に対しても得る平均順位」の相関 | **0 に近いほどよい**（データ量ではなく思想で並んでいる） |
+| 100%飽和 | クリップされた件数 | 0 |
+
+実測の推移（議員15人・政党8党）。
+
+```
+                          1位的中   上位3    平均順位   セル数との相関   100%飽和
+着手前                     6/15    8/15     4.47      +0.83       1.3件/回
+偶然一致の差し引き            6/15    7/15     4.80      +0.61       1.3件/回
+overlap を突出度ベースに      8/15   13/15     2.53      -0.04       0件
+重み付き平均（分母に重みを追加）   〃      〃        〃          〃         0件
+設問カタログを15問→24問に    11/15   14/15     1.67      -0.04       0件
+
+政党                       4/8     7/8      1.75（偶然 4.5）
+```
+
+**設問カタログの寄与が最も大きい**（8/15 → 11/15）。式をいくら詰めても、
+聞いていない論点は識別できません。神谷宗幣（主軸が `sovereignty`）は
+13位 → **1位**になりました。
+
+#### ★「両者とも語らなかった」は偶然の一致を差し引く
+
+```js
+const coverage = [...universe].filter((k) => pmap.has(k)).length / universe.size;
+const kappa = (obs) => Math.max(0, Math.min(1, (obs - (1 - coverage)) / coverage));
+num += kappa(silentAgreement) * SILENT_WEIGHT;
+num += kappa(declinedAgreement) * DECLINED_WEIGHT;
+```
+
+素の一致率をそのまま使うと、**セルの少ない相手が自動的に高く出ます**。ユーザーが何を選ぼうと
+大半のセルを持たないからです。実測では**セル数と平均順位の相関が +0.83**で、
+安野貴博（29セル）が誰の回答に対しても平均2.9位、神谷宗幣（83セル）が14.4位という、
+思想ではなくデータ量を測る状態になっていました。
+
+偶然の一致率は「相手が universe をどれだけ覆っていないか」＝ `1 - coverage`。
+Cohen のκと同じ形で差し引きます。
+
+#### ★スコアは重み付き平均にする（100%張り付きの解消）
+
+```js
+den = Σ u.share + SILENT_WEIGHT + DECLINED_WEIGHT     // 加点の上限を分母に入れる
+num = Σ min(overlap × agree, u.share) + κ(...) × W    // 1セルは自分の share が上限
+```
+
+以前は分子が分母を超えることが多く、**1回の照合あたり平均1.3人が100%に張り付いて**
+順位が付きませんでした（「小川淳也の回答 → 高市100.0 / 河野100.0 / 小川100.0」）。
+上限を分母に入れ、セルごとの寄与を頭打ちにすると、構造上 0〜100 に収まります。
+実測の最高スコアは 74.8 で、飽和は0件になりました。
+
+`SILENT_WEIGHT` / `DECLINED_WEIGHT` は**該当するセルがあるときだけ分母に足します**。
+「関心がない」と答えたことが一度もないユーザーの分母を、無関係に膨らませないためです。
+
+#### ★逆の `role` で強く語っている相手は減点する（`OPPOSITE_ROLE_WEIGHT = 1`）
+
+同じ `frame × target` を、ユーザーとは**逆の role** で強く語っている相手を減点します。
+`beneficiary`（守る対象）と `threat`（脅威）は思想の対立だからです。
+
+```js
+// ユーザー: care_harm × 外国人・移民 × beneficiary（守るべき）
+// 議員　　: care_harm × 外国人・移民 × threat      （治安上の懸念）
+const opposite = pmap.get(`${u.frame}|${u.target}|${u.role === "beneficiary" ? "threat" : "beneficiary"}`);
+if (u.score > STRONG_SCORE && opposite && opposite.score > STRONG_SCORE) {
+  num -= Math.min(u.share * Math.log(1 + opposite.distinctiveness), u.share) * OPPOSITE_ROLE_WEIGHT;
+}
+```
+
+重みは一致と同じ 1.0。「守る対象として語った量」と「脅威として語った量」が釣り合えば
+相殺されます。**これは観測された発言なので `differences` に出して構いません**
+（語っていないセルとの違いに注意）。
+
+##### 閾値は両側とも `STRONG_SCORE = 0.5`
+
+**片側だけ基準を変えないこと**（`override` の重みや `share` の平滑化と同じ理由）。
+
+議員・政党の score は実測1,593セルで **25%点 +0.82・中央値 +1.00**、
+0.5 を超えるものが 81.6%。0.5 未満に残るのは override を含む「向きの読めない」帯です。
+
+**閾値を外すと、脅威の枠組みを持ち出したうえで退けた発言まで減点に数えます。**
+実測では猪瀬直樹の `loyalty_community × 地方 × threat` が score −1.00 で、
+これを減点すると 1.4pt ぶん不当に下がります。
+
+ユーザー側は設問1つにつき1セルなので score は ±1 になりますが、
+同じセルを複数記事で問うようになれば中間値が出ます。そのときも同じ 0.5 で切ります。
+
+##### 発生頻度と効き方
+
+同じ `frame × target` の両ロールを持つ相手は **7.7%**（1,479組中114組）と多くありませんが、
+効くときは大きく効きます。
+
+```
+神谷宗幣  sovereignty × 外国人・移民 × threat  share 0.030 n=67  → 7.3pt の減点
+田村智子  fairness    × 大企業・産業 × threat  share 0.040 n=84  → 8.3pt の減点
+```
+
+実測のユーザーでは 斉藤鉄夫 45.8 → 43.6、高市早苗 43.3 → 41.3、
+自由民主党 31.5 → 30.2 と動き、順位も入れ替わりました。
+
+#### ★語っていないセルは「優先順位を下げた」とみなす（`ABSENCE_WEIGHT = 0.3`）
+
+議員・政党が**一度も語っていない**セルを、`score = -1` の仮想セルとして突き合わせます。
+ユーザーが優先順位を下げたセル（`override`）なら一致、重んじたセルなら寄与ゼロです。
+
+これが無いと、**ユーザーの `override` 回答がどの相手にも効きません**。議員側の score は
+9割方 +1 に張り付く（override が稀）ので、相手が語っていれば必ず `agree = 0`、
+語っていなければ寄与ゼロ、のどちらかにしかならないためです。実測のユーザーで
+11セル中4セルがこれに当たり、分母の36%が全相手に対して死んでいました。
+
+**公約はとくにこの読み方が効きます。** 公約は網羅的に掲げるものなので、
+載せていない＝明示的に優先順位を下げた、と読めるからです。
+
+##### 観測量で割り引く（`ABSENCE_FULL_FRAMES = 1200`）
+
+補正しないと、**観測の少ない相手ほど有利**になります。語っていないセルが多いほど
+加点を集めるためです。実測では安野貴博（Σn=306）が4位→2位に飛び、
+斉藤鉄夫（Σn=1427）が3位→5位に落ちました。
+
+```
+absenceConfidence = source が manifesto / mixed        → 1（公約は網羅的なので満額）
+                    それ以外（答弁データ）             → min(1, Σn / 1200)
+```
+
+`n_segments_valued` ではなくセルの `Σn` を使います。**政党プロファイルの
+`n_segments_valued` は所属議員から集計した党では 0 になる**ためで、
+`Σn` なら議員・政党のどちらでも同じ意味を持ちます。1200 は議員の実測
+（306〜2616、中央値1364）の中央値付近です。
+
+**`reasons` / `differences` には出しません。** 観測された発言ではないので、
+「この議員は◯◯を優先していない」と画面で断定すると「推論でタグを付けない」に触れます。
 
 #### 「両者とも語らなかった」も少しだけ数える
 
