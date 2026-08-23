@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, type CSSProperties, type PointerEvent } from "react";
-import { LockKeyhole, MessageCircle, MessageCircleMore } from "lucide-react";
+import { MessageCircle, MessageCircleMore } from "lucide-react";
 import type { Article, ArticleQuestionOption } from "../lib/types";
 import { INTEREST_LEVELS, interestIndex } from "../lib/interest";
 import { QuestionBlock, isAnswerComplete, type Answers } from "./question-block";
@@ -59,7 +59,6 @@ export function OpinionSheet({
           />
           <div className="sheet-title">
             <div><span className="sheet-icon"><MessageCircleMore size={17} /></span><strong>この記事への意見</strong></div>
-            <span><LockKeyhole size={12} /> 非公開</span>
           </div>
         </div>
 

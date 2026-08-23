@@ -78,6 +78,10 @@ test("ヘッダーのアイコンはコメントアイコン（ハートでは�
   assert.doesNotMatch(html, /lucide-heart/);
 });
 
+test("ヘッダーに非公開の表示はない", () => {
+  assert.doesNotMatch(render(), /非公開/);
+});
+
 test("ハンドルはシートを閉じる操作として利用できる", () => {
   const html = render();
   assert.match(html, /<button[^>]*class="sheet-grabber"[^>]*aria-label="シートを閉じる"/);
