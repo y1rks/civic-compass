@@ -11,7 +11,6 @@ import {
 
 export const MIN_POLITICIAN_CELL_COUNT = 3;
 export const MIN_MATCHED_CELLS = 2;
-export const MIN_ANSWERS = 5;
 /**
  * 「両者とも語らなかった」の重み。**κ（偶然を差し引いた一致率）は実測で平均0.19しか
  * 出ない**ので、以前の 0.3 は取れない点を分母に置いているのと同じでした。

@@ -861,7 +861,7 @@ full.slice(s, t)                        // → 根拠にした箇所
 `reliable: false` を返す条件は、
 
 - 共通セルが `MIN_MATCHED`（まず2で始める）未満
-- または `n_answers < 5`
+- または `n_answers < 4`
 
 このときは「もう少し記事に意見を書くと精度が上がります」と表示します。
 
@@ -953,7 +953,7 @@ npx wrangler kv key list --binding=PROFILES --config api/wrangler.jsonc --remote
 `NaN` になります。**`reliable: false` の判定を割り算より前に置いてください。**
 
 ```js
-if (!user || user.cells.length === 0 || user.n_answers < 5) return { reliable: false };
+if (!user || user.cells.length === 0 || user.n_answers < 4) return { reliable: false };
 ```
 
 プロファイルが KV に**無い**こともあります（まだ一度も保存していないユーザー）。
@@ -1166,7 +1166,7 @@ UI に「強者/弱者」といった形で出さないでください。**
 
 識別力は 14.8 → 23.0pt に単調増加し、真に一番近い議員を1位に当てられる率は 0% → 100%。
 記事1本だけだと**正しい相手ですら 13.4%（真の値は 62%）に下振れ**します。
-`MIN_ANSWERS` のゲートと「もう少し記事に意見を書くと精度が上がります」の案内は
+`MIN_PROFILE_MATCH_ANSWERS` のゲートと「もう少し記事に意見を書くと精度が上がります」の案内は
 データに裏づけられています。
 
 #### 問題は「合わない議員のスコアも一緒に上がる」こと

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MIN_PROFILE_MATCH_ANSWERS } from "@civic-compass/shared";
 import { ArrowUpRight, ChevronDown, Compass } from "lucide-react";
 import type { PartyProfileMatch, PoliticianProfileMatch, ProfileMatchesResponse } from "../lib/types";
 
@@ -132,7 +133,7 @@ export function ProfileMatches({
   const [expanded, setExpanded] = useState<Record<MatchTab, boolean>>({ politicians: false, parties: false });
 
   if (savedCount === 0) {
-    return <div className="empty-state"><Compass size={30} /><h2>まだ分析データがありません</h2><p>ニュースに関心を示すと、ここにマッチ結果が表示されます。</p></div>;
+    return <div className="empty-state"><Compass size={30} /><h2>まだ分析データがありません</h2><p>政治コンパスを表示するには、ニュースへの考えを合計{MIN_PROFILE_MATCH_ANSWERS}件保存してください。</p></div>;
   }
   if (status === "loading") {
     return <div className="empty-state"><span className="spinner dark" /><h2>マッチを分析しています</h2></div>;
@@ -141,7 +142,9 @@ export function ProfileMatches({
     return <div className="empty-state"><Compass size={30} /><h2>マッチ結果を読み込めませんでした</h2><p>時間をおいて、もう一度お試しください。</p></div>;
   }
   if (!result?.reliable) {
-    return <div className="empty-state"><Compass size={30} /><h2>もう少し回答が必要です</h2><p>{result?.user_summary ?? "ニュースへの考えを保存すると、マッチの精度が高まります。"}</p></div>;
+    const remaining = Math.max(0, MIN_PROFILE_MATCH_ANSWERS - savedCount);
+    const heading = remaining > 0 ? `あと${remaining}件の回答が必要です` : "もう少し回答が必要です";
+    return <div className="empty-state"><Compass size={30} /><h2>{heading}</h2><p>{result?.user_summary ?? "ニュースへの考えを保存すると、マッチの精度が高まります。"}</p></div>;
   }
 
   const parties = result.party_matches;

@@ -33,6 +33,9 @@ export const MEAN_OVERRIDE_RATE = 0.066;
 /** 本人の実測値に切り替える回答数のしきい値。これ未満は MEAN_OVERRIDE_RATE を使う。 */
 export const MIN_ANSWERS_FOR_OWN_RATE = 10;
 
+/** 政治コンパスの総合マッチを表示するために必要な回答済み記事数。 */
+export const MIN_PROFILE_MATCH_ANSWERS = 4;
+
 /** その話者が override をどれだけ使うかから、override 1件あたりの重みを決める */
 export function overrideWeight(overrideRate: number): number {
   const p = Math.max(overrideRate, OVERRIDE_RATE_FLOOR);
