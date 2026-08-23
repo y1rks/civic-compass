@@ -101,9 +101,44 @@ async function selectTargets(master, args) {
       return a.block_id.localeCompare(b.block_id);                     // 決定的に
     });
 
-    targets.push(...rows.slice(0, args.limit));
+    targets.push(...pickWithinLimit(rows, args.limit, master.kind));
   }
   return targets;
+}
+
+/**
+ * 上限まで絞る。
+ *
+ * 議員の発言は1ブロックが独立しているので、重みの高い順に先頭から取ればよい。
+ *
+ * ★政党の公約はそうはいかない。1ページを見出しで刻んだものが `_s00, _s01, ...` と
+ *   並ぶので、先頭から取ると**最初の数ページだけを深く読んで、後ろのページを
+ *   まったく読まない**ことになる。実測ではチームみらいが62ページ中3ページ
+ *   （教育・子育て・科学技術の政策ページが丸ごと落ちる）だった。
+ *   公約は分野ごとにページが分かれているので、これは分野の偏りに直結する。
+ *
+ *   そこでページをまたいで1ブロックずつ拾う。ページ内の順序は保つので、
+ *   どのページも頭から読まれる。
+ */
+function pickWithinLimit(rows, limit, kind) {
+  if (kind !== "party" || rows.length <= limit) return rows.slice(0, limit);
+
+  const byDoc = new Map();
+  for (const r of rows) {
+    const doc = r.block_id.replace(/_s\d+$/, "");
+    if (!byDoc.has(doc)) byDoc.set(doc, []);
+    byDoc.get(doc).push(r);
+  }
+
+  const queues = [...byDoc.values()];
+  const picked = [];
+  let i = 0;
+  while (picked.length < limit && queues.some((q) => q.length > 0)) {
+    const q = queues[i % queues.length];
+    if (q.length > 0) picked.push(q.shift());
+    i++;
+  }
+  return picked;
 }
 
 /** 1ブロックを分割 → 各セグメントを抽出 */

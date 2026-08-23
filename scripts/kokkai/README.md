@@ -47,9 +47,17 @@ node scripts/kokkai/preprocess.mjs
 node scripts/kokkai/discover-web.mjs --target=parties           # 公約ページのURL候補
 node scripts/kokkai/fetch-web.mjs   --target=parties [--force]  # 公約ページの本文を取得
 node scripts/kokkai/preprocess.mjs  --target=parties            # data/clean/PT01.jsonl
-node scripts/kokkai/extract-batch.mjs --target=parties --concurrency=8
+node scripts/kokkai/extract-batch.mjs --target=parties --limit-per-target=150 --concurrency=24
                                                                 # → data/utterances-party.jsonl
+node scripts/kokkai/repair-evidence.mjs --in=data/utterances-party.jsonl   # ★抽出完了後に必ず
 node scripts/kokkai/build-profiles.mjs                          # 議員と政党をまとめて作り直す
+```
+
+`--limit-per-target` で党あたりのブロック数を切ると、**ページをまたいで1ブロックずつ**
+拾います。公約は分野ごとにページが分かれているので、先頭から詰めると
+最初の数ページだけを深く読むことになり、分野が丸ごと落ちるためです。
+
+```bash
 ```
 
 出力ファイルは議員と分けています（`data/utterances-party.jsonl`）。
